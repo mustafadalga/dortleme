@@ -3,17 +3,21 @@
     <Navbar />
     <div class="home container">
       <div class="card">
-        <div class="row center">
-          <div class="col s6 offset-s3">
-            <div class="msg msg-info z-depth-2 scale-transition" v-if="istekGonderildiMi">
-              <p>{{ istekGonderildiMi.username }} kullanıcısına zaten istek gönderildi</p>
+        <div class="row">
+          <div class="col s12">
+            <div
+              class="msg msg-info z-depth-2 scale-transition center"
+              v-if="notifications.length<1"
+            >
+              <p>Bildirim bulunmamaktadır</p>
             </div>
           </div>
         </div>
 
         <ul class="collection" style="width:80%;margin:auto">
           <li
-            class="collection-item"    v-for="(notification,index) in sortedNotifications"
+            class="collection-item"
+            v-for="(notification,index) in sortedNotifications"
             :key="index"
           >
             <div v-if="notification.statusCode==0">
@@ -27,11 +31,11 @@
                   Oyuna başlamak için
                   <a
                     class="indigo-text tiklayiniz"
-                    @click="receiveryeniOyun(notification)"
+                    @click="receivernewGame(notification)"
                   >Tıklayınız</a>
                 </p>
               </div>
-              <div v-else-if="rejectedRequests.includes(notification)"  class="collection-item-flex">
+              <div v-else-if="rejectedRequests.includes(notification)" class="collection-item-flex">
                 <font-awesome-icon
                   :icon="['fas', 'user-minus']"
                   class="deep-purple-text text-darken-1 notification-icon"
@@ -40,7 +44,7 @@
                   class="notification-text"
                 >{{ notification.sender}} tarafından gönderilen oyun isteğini iptal ettiniz.</p>
               </div>
-              <div v-else  class="collection-item-flex">
+              <div v-else class="collection-item-flex">
                 <font-awesome-icon
                   :icon="['fas', 'user-plus']"
                   class="deep-purple-text text-darken-1 notification-icon"
@@ -60,26 +64,28 @@
               <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
             <div v-if="notification.statusCode==1" class="collection-item-flex">
-                <font-awesome-icon
-              :icon="['fas', 'user-check']"
-              class="light-green-text text-accent-4 notification-icon"
-            />
-            <p class="notification-text">
-              {{ notification.sender }} kullanıcısına yapılan oyun isteği kabul edildi.Oyuna başlamak için
-              <span
-                class="indigo-text tiklayiniz"
-                @click="senderYeniOyun(notification)"
-              >tıklayınız.</span>
-            </p>
-            <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
+              <font-awesome-icon
+                :icon="['fas', 'user-check']"
+                class="light-green-text text-accent-4 notification-icon"
+              />
+              <p class="notification-text">
+                {{ notification.sender }} kullanıcısına yapılan oyun isteği kabul edildi.Oyuna başlamak için
+                <span
+                  class="indigo-text tiklayiniz"
+                  @click="sendernewGame(notification)"
+                >tıklayınız.</span>
+              </p>
+              <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
-            <div  v-if="notification.statusCode==2" class="collection-item-flex" >
-                <font-awesome-icon
-              :icon="['fas', 'user-minus']"
-              class="red-text text-accent-4 notification-icon"
-            />
-            <p class="notification-text">{{ notification.sender }} kullanıcısı isteğinizi reddetti.</p>
-            <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
+            <div v-if="notification.statusCode==2" class="collection-item-flex">
+              <font-awesome-icon
+                :icon="['fas', 'user-minus']"
+                class="red-text text-accent-4 notification-icon"
+              />
+              <p
+                class="notification-text"
+              >{{ notification.sender }} kullanıcısı isteğinizi reddetti.</p>
+              <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
           </li>
         </ul>
@@ -115,8 +121,7 @@ export default {
       rakipOyuncu: null,
       feedback: null,
       scale: "scale-out",
-      notifications: [],
-      istekGonderildiMi: null
+      notifications: []
     };
   },
   computed: {
@@ -161,7 +166,16 @@ export default {
   },
   methods: {
     timestampFormat(timestamp) {
-      return format(timestamp);
+      let time = format(timestamp);
+      time = time.replace("just now", "şimdi");
+      time = time.replace("ago", "önce");
+      time = time.replace("seconds", "saniye");
+      time = time.replace("minutes", "dakika");
+      time = time.replace("hours", "saat");
+      time = time.replace("days", "gün");
+      time = time.replace("weeks", "hafta");
+      time = time.replace("years", "yıl");
+      return time;
     },
     istekKabulEt(user) {
       db.collection("notifications").add({
@@ -274,36 +288,11 @@ export default {
           });
         });
     },
-    senderYeniOyun(user) {
-      db.collection("game_rooms")
-        .get()
-        .then(docs => {
-          docs.forEach(doc => {
-            let room = doc.data();
-            let oyuncular = room.oyuncular;
-            if (
-              oyuncular.includes(this.currentUser.email) &&
-              oyuncular.includes(user.receiverEmail)
-            ) {
-              this.oyunSessionTanimla(user, room.oyunNo);
-              return true;
-            }
-          });
-        })
-        .then(() => {
-          if (this.oyunTanimliMi()) {
-            console.log(this.$session.get("rakipOyuncu"));
-            console.log(this.$session.get("oyunNo"));
-            this.oyunaYonlendir();
-          } else {
-            console.log("yeni oda oluşturuluyor.");
-            this.oyunOdasiOlustur(user);
-            this.oyunSessionTanimla(user, this.oyunNo);
-            this.oyunaYonlendir();
-          }
-        });
-    },
-    receiveryeniOyun(user) {
+    sendernewGame(user) {
+      let opponent = {
+        username: user.sender,
+        email: user.senderEmail
+      };
       db.collection("game_rooms")
         .get()
         .then(docs => {
@@ -314,7 +303,7 @@ export default {
               oyuncular.includes(this.currentUser.email) &&
               oyuncular.includes(user.senderEmail)
             ) {
-              this.oyunSessionTanimla(user, room.oyunNo);
+              this.oyunSessionTanimla(opponent, room.oyunNo);
               return true;
             }
           });
@@ -326,8 +315,41 @@ export default {
             this.oyunaYonlendir();
           } else {
             console.log("yeni oda oluşturuluyor.");
-            this.oyunOdasiOlustur(user);
-            this.oyunSessionTanimla(user, this.oyunNo);
+            this.oyunOdasiOlustur(user.senderEmail);
+            this.oyunSessionTanimla(opponent, this.oyunNo);
+            this.oyunaYonlendir();
+          }
+        });
+    },
+    receivernewGame(user) {
+      let opponent = {
+        username: user.sender,
+        email: user.senderEmail
+      };
+      db.collection("game_rooms")
+        .get()
+        .then(docs => {
+          docs.forEach(doc => {
+            let room = doc.data();
+            let oyuncular = room.oyuncular;
+            if (
+              oyuncular.includes(this.currentUser.email) &&
+              oyuncular.includes(user.senderEmail)
+            ) {
+              this.oyunSessionTanimla(opponent, room.oyunNo);
+              return true;
+            }
+          });
+        })
+        .then(() => {
+          if (this.oyunTanimliMi()) {
+            console.log(this.$session.get("rakipOyuncu"));
+            console.log(this.$session.get("oyunNo"));
+            this.oyunaYonlendir();
+          } else {
+            console.log("yeni oda oluşturuluyor.");
+            this.oyunOdasiOlustur(user.senderEmail);
+            this.oyunSessionTanimla(opponent, this.oyunNo);
             this.oyunaYonlendir();
           }
         });
@@ -339,24 +361,25 @@ export default {
         return false;
       }
     },
-    oyunSessionTanimla(user, oyunNo) {
-      this.$session.set("rakipOyuncu", user);
+    oyunSessionTanimla(opponent, oyunNo) {
+      this.$session.set("rakipOyuncu", opponent);
       this.$session.set("oyunNo", oyunNo);
     },
     oyunaYonlendir() {
       this.$router.push({ name: "Game" });
     },
-    oyunOdasiOlustur(user) {
+    oyunOdasiOlustur(opponentEmail) {
       this.oyunNo = Date.now().toString();
       let ref = db.collection("game_rooms").doc(this.oyunNo);
       ref.get().then(doc => {
         if (!doc.exists) {
           ref.set({
             oyunNo: this.oyunNo,
-            oyuncular: [this.currentUser.email, user.receiverEmail]
+            oyuncular: [this.currentUser.email, opponentEmail],
+            oyunuBaslatanEmail: this.currentUser.email
           });
         } else {
-          this.oyunOdasiOlustur(user);
+          this.oyunOdasiOlustur(opponentEmail);
         }
       });
     },
@@ -429,7 +452,6 @@ export default {
   width: 100%;
   border: 1px solid;
   padding: 10px;
-  margin: 20px;
   color: grey;
 }
 .msg-error {
@@ -465,7 +487,7 @@ export default {
 .collection-item {
   position: relative;
 }
-.collection-item-flex{
+.collection-item-flex {
   display: flex;
   align-items: center;
 }
