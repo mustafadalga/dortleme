@@ -55,7 +55,9 @@ import {
   faHome,
   faUserPlus,
   faSignOutAlt,
+  faSignInAlt,
   faBell,
+  faTimesCircle
   
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -64,7 +66,9 @@ library.add(
   faHome,
   faUserPlus,
   faSignOutAlt,
-  faBell
+  faBell,
+  faTimesCircle,
+  faSignInAlt
 );
 
 import firebase from "firebase";
