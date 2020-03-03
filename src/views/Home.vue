@@ -3,10 +3,6 @@
     <Navbar />
     <div class="home container">
       <div class="card">
-        <a class="waves-effect waves-light btn-large btn deep-purple darken-1">
-          <font-awesome-icon :icon="['fas', 'dice-two']" />
-        </a>
-
         <a class="waves-effect waves-light btn-large" @click="dbreset">
           <i class="material-icons left">all_out</i>game_users
         </a>
@@ -19,26 +15,36 @@
 
         <h3 class="heading center">Aktif Kullanıcılar</h3>
         <div class="row center">
-          <div class="col s6 offset-s3">
-            <div class="msg msg-error z-depth-2 scale-transition" :class="scale">{{ feedback}}</div>
-            <div class="collection kullanicilar" v-for="(user,index) in activeUsers" :key="index">
-              <a href="#!" class="collection-item" @click="oyunIstekGonder(user)">
-                <div class="online-status"></div>
-                <span>{{ user.username}}</span>
-              </a>
+          <div class="col s8 offset-s2">
+            <div v-if="activeUsers.length<1">
+              <div class="msg msg-error z-depth-2">
+                <p>Online kullanıcı bulunmamaktadır.</p>
+              </div>
             </div>
+            <div v-if="istekGonderildiMi" class="scale-transition" :class="scale">
+              <div class="msg msg-info z-depth-2" v-if="istekGonderildiMi.status">
+                <p>{{ istekGonderildiMi.username }} kullanıcısına oyun isteği gönderildi</p>
+              </div>
+              <div class="msg msg-error z-depth-2" v-else-if="!istekGonderildiMi.status">
+                <p>{{ istekGonderildiMi.username }} kullanıcına zaten oyun isteği gönderildi</p>
+              </div>
+            </div>
+
+            <ul class="collection" v-for="(user,index) in activeUsers" :key="index">
+              <li class="collection-item collection-item-user">
+                <div class="collection-user">
+                  <div class="online-status"></div>
+                  <span>{{ user.username}}</span>
+                </div>
+                <button
+                  :ref="user.username"
+                  class="btn btn-game-request indigo accent-2"
+                  @click="oyunIstekGonder(user)"
+                >İstek Gönder</button>
+              </li>
+            </ul>
           </div>
         </div>
-
-        <div class="row center">
-          <div class="col s6 offset-s3">
-            <div class="msg msg-info z-depth-2 scale-transition" v-if="istekGonderildiMi">
-              <p>{{ istekGonderildiMi.username }} kullanıcısına zaten istek gönderildi</p>
-            </div>
-          </div>
-        </div>
-
-
       </div>
     </div>
   </div>
@@ -58,18 +64,13 @@ export default {
   },
   data() {
     return {
-      users: [],
       activeUsers: [],
       rakipOyuncu: null,
-      feedback: null,
       scale: "scale-out",
       gameRequests: [],
-      acceptedRequests: [],
-      rejectedRequests: [],
-      acceptedRequest: null,
       istekGonderildiMi: null,
-      getEmail: null,
-      oyunNo: false
+      oyunNo: false,
+      timeoutHandle:null,
     };
   },
   created() {
@@ -80,41 +81,28 @@ export default {
       // Chrome requires returnValue to be set.
       //  event.returnValue = "";
     });
-    this.$session.remove('oyunNo')
+    this.$session.remove("oyunNo");
     this.currentUser = this.$session.get("user");
     this.addGameUsers();
     this.getGameUsers();
   },
   methods: {
     oyunIstekGonder(user) {
-      db.collection("game_requests")
+     window.clearTimeout(this.timeoutHandle);
+     this.buttonRequestAddCSS(user)
+
+      db.collection("notifications")
         .where("statusCode", "==", 0)
         .where("sender", "==", this.currentUser.username)
         .where("receiver", "==", user.username)
         .get()
         .then(doc => {
-          console.log(doc);
-          let timestamp = Date.now();
-          db.collection("notifications").add({
-            sender: this.currentUser.username,
-            senderEmail: this.currentUser.email,
-            receiver: user.username,
-            receiverEmail: user.email,
-            statusCode: 0,
-            seenStatus: false,
-            requestCode:timestamp,
-            timestamp:timestamp,
-          });
-
-          /*          
           if (doc.docs.length > 0) {
             this.istekGonderildiMi = { username: user.username, status: false };
-            this.istekGonderildiMi = {  };
             return true;
           } else {
             let requestCode = Date.now();
-            this.sendRequests.push(requestCode);
-            db.collection("game_requests").add({
+            db.collection("notifications").add({
               sender: this.currentUser.username,
               senderEmail: this.currentUser.email,
               receiver: user.username,
@@ -123,11 +111,18 @@ export default {
               statusCode: 0,
               seenStatus: false
             });
+            this.istekGonderildiMi = { username: user.username, status: true };
           }
-*/
         });
+      this.scale = "";
+     this.timeoutHandle= window.setTimeout(() => (this.scale = "scale-out"), 4000);
     },
-
+    buttonRequestAddCSS(user){
+     let buttonRef=this.$refs[user.username][0]
+     buttonRef.innerText = "İstek Gönderildi";
+     buttonRef.style.border='1px solid rgb(83, 109, 254)'
+     buttonRef.disabled=true
+    },
     addGameUsers() {
       let ref = db.collection("game_users").doc(this.currentUser.email);
       ref.get().then(doc => {
@@ -319,20 +314,20 @@ export default {
   margin-right: 8px;
   font-size: 3em;
 }
-.btn {
+.btn-game-request {
+  font-size: 0.5em;
+}
+.collection-item-user {
+  justify-content: space-between;
+}
+.collection-user {
   display: flex;
-  width: 8em;
   align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  margin-right: auto;
-  margin-bottom: 1em;
 }
 .msg {
   width: 100%;
   border: 1px solid;
   padding: 10px;
-  margin: 20px;
   color: grey;
 }
 .msg-error {
@@ -345,7 +340,6 @@ export default {
   background-color: #ff9800;
   color: white;
 }
-
 .msg-info {
   border-color: #0288d1;
   background-color: #29b6f6;
