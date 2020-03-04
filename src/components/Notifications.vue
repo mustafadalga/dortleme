@@ -370,13 +370,20 @@ export default {
     },
     oyunOdasiOlustur(opponentEmail) {
       this.oyunNo = Date.now().toString();
+      let currentEmail=this.currentUser.email
+      let skor={}
+      skor[this.currentUser.email]=0
+      skor[opponentEmail]=0
       let ref = db.collection("game_rooms").doc(this.oyunNo);
       ref.get().then(doc => {
         if (!doc.exists) {
           ref.set({
             oyunNo: this.oyunNo,
-            oyuncular: [this.currentUser.email, opponentEmail],
-            oyunuBaslatanEmail: this.currentUser.email
+            oyuncular: [currentEmail, opponentEmail],
+            oyunuBaslatanEmail:currentEmail,
+            hamleSirasi: currentEmail,
+            kazananOyuncu: null,
+            skor:skor
           });
         } else {
           this.oyunOdasiOlustur(opponentEmail);
