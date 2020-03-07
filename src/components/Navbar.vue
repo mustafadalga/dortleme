@@ -32,7 +32,6 @@
               class="font-awesome-size"
               :class="[notificationCount > 0 ? 'bell-on' : '',isAnimateAdded ? 'animated wobble' : '']"
             />
-            {{ notificationCount}}
             <span
               v-if="notificationCount > 0"
               class="bell-badge"
@@ -58,7 +57,6 @@ import {
   faSignInAlt,
   faBell,
   faTimesCircle
-  
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
@@ -77,7 +75,7 @@ export default {
   name: "Navbar",
   data() {
     return {
-      isAnimateAdded: false,
+      isAnimateAdded: false
     };
   },
   created() {
@@ -87,11 +85,11 @@ export default {
       if (this.$route.name === "Notifications") {
         this.updateNotificationsSeenStatus();
       } else {
-        this.notificationCount=this.$session.get('notificationCount')
+        this.notificationCount = this.$session.get("notificationCount");
         if (this.$session.get("isNotificationReset")) {
           this.bildirimSifirlamaDurumDegistir();
         }
-        this.getNotifications()
+        this.getNotifications();
       }
     }
   },
@@ -113,9 +111,9 @@ export default {
           this.$session.set("notificationCount", 0);
           this.notificationIdList = [];
           console.log(this.$session.get("notificationCount"));
-          this.getNotifications()
+          this.getNotifications();
           console.log(this.$session.get("notificationCount"));
-          console.log("selam")
+          console.log("selam");
         });
     },
     bildirimSifirla() {
@@ -128,9 +126,11 @@ export default {
       this.bildirimSifirla();
     },
     addNotification(id) {
-      let notificationIndex = this.notificationIdList.findIndex(notificationId => {
-        return notificationId == id;
-      });
+      let notificationIndex = this.notificationIdList.findIndex(
+        notificationId => {
+          return notificationId == id;
+        }
+      );
       if (notificationIndex === -1) {
         console.log("Eklendi");
         this.notificationIdList.push(id);
@@ -147,33 +147,27 @@ export default {
       }, 2500);
     },
 
-
-getNotifications(){
-
-      db.collection("notifications")
-        .onSnapshot(snapshot => {
-          snapshot.docChanges().forEach(change => {
-            if (change.type == "added") {
-              let doc = change.doc;
-              let receiverEmail = doc.data().receiverEmail;
-              let seenStatus = doc.data().seenStatus;
-              if (this.currentUser.email == receiverEmail && !seenStatus) {
-                this.addNotification(doc.id);
-                this.createNotificationAnimation();
-              }
+    getNotifications() {
+      db.collection("notifications").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type == "added") {
+            let doc = change.doc;
+            let receiverEmail = doc.data().receiverEmail;
+            let seenStatus = doc.data().seenStatus;
+            if (this.currentUser.email == receiverEmail && !seenStatus) {
+              this.addNotification(doc.id);
+              this.createNotificationAnimation();
             }
-          });
+          }
         });
-
-
-
-},
+      });
+    },
     logout() {
       firebase
         .auth()
         .signOut()
         .then(() => {
-     //   this.aktifOyunKullaniciSil();
+          this.aktifOyunKullaniciSil();
           this.sessionSifirla();
           this.$router.push({ name: "Login" });
         });
@@ -196,23 +190,27 @@ getNotifications(){
     },
     aktifOyunKullaniciSil() {
       let ref = db.collection("game_users");
+       ref.doc(this.currentUser.email).delete();
+      /*
       if (this.$session.exists("rakipOyuncu")) {
         let rakipOyuncu = this.$session.get("rakipOyuncu");
         ref.doc(rakipOyuncu.email).update({
           is_play: false
         });
       }
-      ref.doc(this.currentUser.email).delete();
+*/
     },
     kullaniciOyunDurumDegistir() {
-      let rakipOyuncu = this.$session.get("rakipOyuncu");
+     // let rakipOyuncu = this.$session.get("rakipOyuncu");
       let ref = db.collection("game_users");
       ref.doc(this.currentUser.email).update({
         is_play: false
       });
+      /*
       ref.doc(rakipOyuncu.email).update({
         is_play: false
       });
+      */
     }
   }
 };
