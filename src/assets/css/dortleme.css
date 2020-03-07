@@ -106,6 +106,14 @@ body {
     border: 5px solid #42a5f5;
 }
 
+.cursor-not-allowed {
+    cursor: not-allowed;
+}
+
+.pointer-events-none {
+    pointer-events: none;
+}
+
 
 /*MEDIA SCREEN*/
 
@@ -120,8 +128,8 @@ body {
     .hucre {
         margin-left: auto;
     }
-    .card-green-team span,
-    .card-red-team span {
+    .card-green-team .player-name,
+    .card-red-team .player-name {
         display: none;
     }
 }
