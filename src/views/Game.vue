@@ -8,35 +8,42 @@
         <div class="col s3">
           <p
             class="z-depth-1 white-text bg-red card-red-team"
-            :class="aktifTakim==1 ? 'aktif-takim-border' : ''"
+            :class="hamleSirasi==baslayanOyuncu ? 'aktif-takim-border' : ''"
           >
-            <span>{{ user.username }}</span>
+            <span class="player-name">{{ baslayanOyuncu==currentUser.email ? currentUser.username : rakip.username }}</span>
             <font-awesome-icon :icon="['fas', 'user']" />
-            <a class="btn-floating waves-effect waves-light skor skor-bg-red">34</a>
+            <span
+              class="btn-floating waves-effect waves-light skor skor-bg-red"
+            >{{ baslayanOyuncu==currentUser.email ? skor[currentUser.email] : skor[rakip.email] }}</span>
           </p>
         </div>
+
         <div class="col s3 offset-s6">
           <p
             class="z-depth-1 white-text bg-green card-green-team"
-            :class="aktifTakim==2 ? 'aktif-takim-border' : ''"
+            :class="hamleSirasi!=baslayanOyuncu ? 'aktif-takim-border' : ''"
           >
             <font-awesome-icon :icon="['fas', 'user']" />
-            <span>{{ rakip.username }}</span>
-            <a class="btn-floating waves-effect waves-light bg-green skor">34</a>
+            <span class="player-name">{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
+            <span
+              class="btn-floating waves-effect waves-light bg-green skor"
+            >{{ baslayanOyuncu==currentUser.email ? skor[rakip.email] : skor[currentUser.email] }}</span>
           </p>
         </div>
       </div>
     </div>
-
- <div class="dortleme-container">
-      <div class="dortleme">
-      <div v-for="row in 6" :key="row" class="row-container">
-        <div v-for="col in 8" :key="col">
-          <div @click="hamle" :class="renkYerlestir(row,col)" class="hucre" :row="row" :col="col"></div>
+    <div
+      class="dortleme-container"
+      :class="hamleSirasi!=currentUser.email ? 'cursor-not-allowed' : ''"
+    >
+      <div class="dortleme" :class="hamleSirasi!=currentUser.email ? 'pointer-events-none' : ''">
+        <div v-for="row in 6" :key="row" class="row-container">
+          <div v-for="col in 8" :key="col">
+            <div @click="hamle" :class="renkYerlestir(row,col)" class="hucre" :row="row" :col="col"></div>
+          </div>
         </div>
       </div>
     </div>
- </div>
   </div>
 </template>
 
@@ -56,8 +63,8 @@ export default {
   },
   data() {
     return {
-      aktifTakim: 1,
-      takimNo: 1,
+      aktifTakim: null,
+      takimNo: null,
       hamleler: [],
       yesilHamleSayisi: 0,
       kirmiziHamleSayisi: 0,
@@ -66,18 +73,50 @@ export default {
       renk: null,
       rakip: null,
       user: null,
-      oyunNo: null
+      oyunNo: null,
+      baslayanOyuncu: null,
+      hamleSirasi: null,
+      kazananOyuncu: null,
+      skor: {},
+      skorArtirilsinMi: true,
     };
   },
   created() {
-    this.user = this.$session.get("user");
-    this.rakip = this.$session.get("rakipOyuncu");
+    this.currentUser = this.$session.get("user");
     this.oyunNo = this.$session.get("oyunNo");
+    this.whichPlayerStart();
+    console.log(this.hamleSirasi)
+    this.rakip = this.$session.get("rakipOyuncu");
+    this.skor[this.currentUser.email] = 0;
+    this.skor[this.rakip.email] = 0;
     this.hamlelerListele();
+    this.kazananOyuncuGetir();
+    this.skorGetir();
+    
   },
-
+  
   methods: {
+    whichPlayerStart() {
+      let ref = db.collection("game_rooms").doc(this.oyunNo);
+      ref
+        .get()
+        .then(doc => {
+          this.baslayanOyuncu = doc.data().oyunuBaslatanEmail;
+          this.hamleSirasi = doc.data().oyunuBaslatanEmail;
+        })
+        .then(() => {
+          if (this.hamleSirasi == this.currentUser.email) {
+            this.aktifTakim = 1;
+          } else {
+            this.aktifTakim = 2;
+          }
+        }).then(()=>{
+          this.hamleSırasiGetir()
+        })
+    },
     hamle(event) {
+      this.tumHamlelerYapildiMi()
+      console.log(this.hamleler.length)
       this.hamleSayiArtir();
       const col = parseInt(event.toElement.attributes.col.value);
       let enAltSatir = this.altSatirBul(col);
@@ -87,8 +126,8 @@ export default {
       this.takimNo = this.aktifTakim;
       this.takimDegistir();
       this.hamleKaydet();
+      this.hamleSirasiDegistir();
     },
-
     hamlelerListele() {
       db.collection("hamleler")
         .where("oyunNo", "==", this.oyunNo)
@@ -107,6 +146,29 @@ export default {
           });
         });
     },
+    hamleSirasiDegistir() {
+      var ref = db.collection("game_rooms").doc(this.oyunNo);
+      ref.update({
+        hamleSirasi: this.rakip.email
+      });
+    },
+    hamleSırasiGetir() {
+
+
+      db.collection("game_rooms")
+        .where("oyunNo", "==", this.oyunNo)
+        .onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            if (change.type == "modified" || change.type=="added") {
+             this.hamleSirasi = change.doc.data().hamleSirasi;
+             console.log("geldi")
+             console.log(this.hamleSirasi)
+            }
+          });
+        });
+
+
+    },
     sonHamleGetir() {
       let scope = this;
       db.collection("hamleler")
@@ -118,13 +180,15 @@ export default {
             var lastRecord = [];
             prevSnapshot.docChanges().forEach(change => {
               let doc = change.doc.data();
-              lastRecord.push({
-                row: doc.row,
-                col: doc.col,
-                renk: doc.renk,
-                aktifTakim: doc.aktifTakim,
-                takimNo: doc.takimNo
-              });
+              if (doc.oyunNo == scope.oyunNo) {
+                lastRecord.push({
+                  row: doc.row,
+                  col: doc.col,
+                  renk: doc.renk,
+                  aktifTakim: doc.aktifTakim,
+                  takimNo: doc.takimNo
+                });
+              }
             });
             return Promise.all(lastRecord);
           },
@@ -162,7 +226,10 @@ export default {
         });
     },
     dbreset() {
-      var jobskill_query = db.collection("hamleler").where("oyunNo", "==", 1);
+      this.hamleler=[]
+      var jobskill_query = db
+        .collection("hamleler")
+        .where("oyunNo", "==", this.oyunNo);
       jobskill_query.get().then(function(querySnapshot) {
         querySnapshot.forEach(function(doc) {
           doc.ref.delete();
@@ -272,6 +339,7 @@ export default {
     dikeyKontrol(satirNo, sutunNo) {
       let hucreSayisi = this.dikeyYukaridanKontrol(satirNo, sutunNo);
       if (this.dortluTamamlandimi(hucreSayisi)) {
+
         this.oyunTamamlandi();
       }
     },
@@ -323,6 +391,7 @@ export default {
       for (let index = sutunNo; index > 0; index--) {
         renkKodu = this.hucreRenginiGetir(satirNo, index);
         if (renkKodu == this.takimNo) {
+       
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -346,6 +415,44 @@ export default {
       } else {
         return false;
       }
+    },
+    kazananOyuncuEkle() {
+      var ref = db.collection("game_rooms").doc(this.oyunNo);
+      ref.update({
+        kazananOyuncu: this.currentUser.email
+      });
+    },
+    kazananOyuncuGetir() {
+      let ref = db.collection("game_rooms");
+      ref.onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (
+            change.type == "modified" &&
+            change.doc.id == this.oyunNo &&
+            change.doc.data().kazananOyuncu
+          ) {
+            this.kazananOyuncu = change.doc.data().kazananOyuncu;
+            this.skor = change.doc.data().skor;
+          }
+        });
+      });
+    },
+    skorArtir() {
+      this.skor[this.currentUser.email] += 1;
+      var ref = db.collection("game_rooms").doc(this.oyunNo);
+      ref.update({
+        skor: this.skor
+      });
+    },
+    skorGetir() {
+      db.collection("game_rooms").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type == "added" && change.doc.id == this.oyunNo) {
+            this.skor = change.doc.data().skor;
+          }
+        });
+      });
+      this.skorArtirilsinMi=true
     },
     altSatirBul(sutun) {
       for (let index = 6; index > 0; index--) {
@@ -401,7 +508,13 @@ export default {
       }
     },
     oyunTamamlandi() {
-      alert("başarılı");
+        this.kazananOyuncuEkle();
+        this.skorArtir();
+    },
+    tumHamlelerYapildiMi(){
+     if(this.hamleler.length>=48){
+       alert("Tüm  hamleler tamamlandı")
+     }
     },
     oyunuKazandiMi(satir, sutun) {
       var kontrolYapilsinmi = false;
@@ -415,8 +528,8 @@ export default {
         }
       }
       if (kontrolYapilsinmi) {
-        this.yatayKontrol(satir, sutun);
         this.dikeyKontrol(satir, sutun);
+        this.yatayKontrol(satir, sutun);
         this.caprazKontrol(satir, sutun);
       }
     }
