@@ -1,31 +1,94 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import Home from '../views/Home.vue'
+import Game from '../views/Game.vue'
+import Login from '../views/auth/Login.vue'
+import Signup from '../views/auth/Signup.vue'
+import Notifications from '@/components/Notifications'
+import db from '@/firebase/init'
 
 Vue.use(VueRouter)
 
-const routes = [
-  {
-    path: '/',
-    name: 'home',
-    component: Home
-  },
-  {
-    path: '/about',
-    name: 'about',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: function () {
-      return import(/* webpackChunkName: "about" */ '../views/About.vue')
+const routes = [{
+        path: '/',
+        name: 'Home',
+        component: Home,
+        meta: {
+            requiresAuth: true
+        }
+    }, {
+        path: '/game',
+        name: 'Game',
+        component: Game,
+        meta: {
+            requiresAuth: true
+        }
+    },
+    {
+        path: '/login',
+        name: 'Login',
+        component: Login
+    },
+    {
+        path: '/signup',
+        name: 'Signup',
+        component: Signup
+    },
+    {
+        path: '/notifications',
+        name: 'Notifications',
+        component: Notifications,
+        meta: {
+            requiresAuth: true
+        }
     }
-  }
+
 ]
 
 const router = new VueRouter({
-  mode: 'history',
-  base: process.env.BASE_URL,
-  routes
+    mode: 'history',
+    base: process.env.BASE_URL,
+    routes
+})
+
+
+router.beforeEach((to, from, next) => {
+    if (to.matched.some(rec => rec.meta.requiresAuth)) {
+
+        if (Vue.prototype.$session.exists('user')) {
+
+
+            if (to.name == "Game") {
+                let oyunNo = Vue.prototype.$session.get('oyunNo');
+
+                if (oyunNo) {
+                    let ref = db.collection("game_rooms").doc(oyunNo);
+                    ref.get().then(doc => {
+                        if (doc.id == oyunNo) {
+                            next()
+                        } else {
+                            //console.log("Geçersiz oyun odası!")
+                        }
+                    })
+                } else {
+                    next({ name: 'Home' })
+                }
+
+            } else {
+                next()
+            }
+        } else {
+            next({ name: 'Login' })
+        }
+    } else {
+        if (Vue.prototype.$session.exists('user')) {
+
+            if (to.name == "Login" || to.name == "Signup") {
+                next({ name: 'Home' })
+            }
+        }
+        next()
+    }
 })
 
 export default router
