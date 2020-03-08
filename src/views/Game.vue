@@ -16,7 +16,7 @@
             <font-awesome-icon :icon="['fas', 'user']" />
             <span
               class="btn-floating waves-effect waves-light skor skor-bg-red"
-            >{{ baslayanOyuncu==currentUser.email ? skor[currentUser.email] : skor[rakip.email] }}</span>
+            >{{ baslayanOyuncu==currentUser.email ? skor[currentUser.username] : skor[rakip.username] }}</span>
           </p>
         </div>
 
@@ -31,11 +31,12 @@
             >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
-            >{{ baslayanOyuncu==currentUser.email ? skor[rakip.email] : skor[currentUser.email] }}</span>
+            >{{ baslayanOyuncu==currentUser.email ? skor[rakip.username] : skor[currentUser.username] }}</span>
           </p>
         </div>
       </div>
     </div>
+
     <div
       class="dortleme-container"
       :class="hamleSirasi!=currentUser.email ? 'cursor-not-allowed tooltip' : ''"
@@ -57,16 +58,26 @@
       </div>
     </div>
 
-    <div class="alert-bottom-container" v-if="!isOpenAlert">
-      <div class="msg msg-error z-depth-2 scale-transition center">
-        <span>Rakip oyuncu beklenmektedir.</span>
+    <div class="alert-bottom-container">
+      <div class="alert-bottom scale-transition" :class="scaleCSS">
+        <div class="msg z-depth-2" :class="msgTypeCSS" v-if="!isOpenAlert">
+          <span>Rakip oyuncu beklenmektedir.</span>
+        </div>
+        <div class="msg z-depth-2" :class="msgTypeCSS" v-else-if="isOpenAlert">
+          <span>Rakip oyuncu oyuna dahil oldu.Oyun başladı</span>
+        </div>
       </div>
     </div>
 
     <notifications position="top center" group="alert" />
 
     <div v-if="isOpenModal">
-      <GameModal @modalClose="modalClose" @yeniOyun="yeniOyun" />
+      <GameModal
+        @modalClose="modalClose"
+        @yeniOyun="yeniOyun"
+        :kazananOyuncu="kazananOyuncu"
+        :skor="skor"
+      />
     </div>
   </div>
 </template>
@@ -100,13 +111,16 @@ export default {
       rakip: null,
       user: null,
       oyunNo: null,
+      scaleCSS: "scale-in",
+      msgTypeCSS: "msg-error",
       baslayanOyuncu: null,
       hamleSirasi: null,
       kazananOyuncu: null,
       skor: {},
       skorArtirilsinMi: true,
       isOpenModal: false,
-      isOpenAlert: false
+      isOpenAlert: false,
+      oyuncuKadroTamamMi: false
     };
   },
   created() {
@@ -114,14 +128,11 @@ export default {
     this.oyunNo = this.$session.get("oyunNo");
     this.whichPlayerStart();
     this.rakip = this.$session.get("rakipOyuncu");
-    this.skor[this.currentUser.email] = 0;
-    this.skor[this.rakip.email] = 0;
     this.hamlelerListele();
     this.kazananOyuncuGetir();
     this.kazananOyuncuSifirla();
     this.skorGetir();
     this.oyuncuKadroTamamlandiMi();
-    //this.oyuncuKadroDurumGuncelle();
   },
   methods: {
     oyuncuKadroTamamlandiMi() {
@@ -129,8 +140,24 @@ export default {
         .where("oyunNo", "==", this.oyunNo)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
-            if ((change.type == "modified" || change.type=="added") && change.doc.data().oyuncuKadroTamamMi == true) {
-              this.isOpenAlert = true;
+            if (
+              (change.type == "modified" || change.type == "added") &&
+              change.doc.data().oyuncuKadroTamamMi == true
+            ) {
+              if (!this.oyuncuKadroTamamMi) {
+                this.isOpenAlert = true;
+                this.oyuncuKadroTamamMi = true;
+                this.scaleCSS = "scale-out";
+
+                window.setTimeout(() => {
+                  this.msgTypeCSS = "msg-info";
+                  this.scaleCSS = "scale-in";
+                }, 1000);
+
+                window.setTimeout(() => {
+                  this.scaleCSS = "scale-out";
+                }, 3000);
+              }
             }
           });
         });
@@ -157,9 +184,16 @@ export default {
               .delete();
           });
         });
-      //  this.isOpenModal = false;
       this.kazananOyuncuSifirla();
+      this.isOpenAlert = false;
       this.hamleler = [];
+    },
+    getWinnerUsername() {
+      if (this.kazananOyuncu == this.rakip.email) {
+        this.kazananOyuncu = this.rakip.username;
+      } else {
+        this.kazananOyuncu = this.currentUser.username;
+      }
     },
     whichPlayerStart() {
       let ref = db.collection("game_rooms").doc(this.oyunNo);
@@ -184,7 +218,6 @@ export default {
       const col = parseInt(event.toElement.attributes.col.value);
       let enAltSatir = this.altSatirBul(col);
       if (enAltSatir) {
-        console.log(enAltSatir);
         this.row = enAltSatir;
         this.col = col;
         this.hamleSayiArtir();
@@ -498,11 +531,12 @@ export default {
       ref.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
-            change.type == "modified" &&
+            (change.type == "modified" || change.type == "added") &&
             change.doc.id == this.oyunNo &&
             change.doc.data().kazananOyuncu
           ) {
             this.kazananOyuncu = change.doc.data().kazananOyuncu;
+            this.getWinnerUsername();
             this.skor = change.doc.data().skor;
             this.isOpenModal = true;
           }
@@ -510,7 +544,10 @@ export default {
       });
     },
     skorArtir() {
-      this.skor[this.currentUser.email] += 1;
+      let playerIndex = this.skor.findIndex(player => {
+        return player.username === this.currentUser.username;
+      });
+      this.skor[playerIndex].puan += 1;
       var ref = db.collection("game_rooms").doc(this.oyunNo);
       ref.update({
         skor: this.skor
