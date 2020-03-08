@@ -10,7 +10,9 @@
             class="z-depth-1 white-text bg-red card-red-team"
             :class="hamleSirasi==baslayanOyuncu ? 'aktif-takim-border' : ''"
           >
-            <span class="player-name">{{ baslayanOyuncu==currentUser.email ? currentUser.username : rakip.username }}</span>
+            <span
+              class="player-name"
+            >{{ baslayanOyuncu==currentUser.email ? currentUser.username : rakip.username }}</span>
             <font-awesome-icon :icon="['fas', 'user']" />
             <span
               class="btn-floating waves-effect waves-light skor skor-bg-red"
@@ -24,7 +26,9 @@
             :class="hamleSirasi!=baslayanOyuncu ? 'aktif-takim-border' : ''"
           >
             <font-awesome-icon :icon="['fas', 'user']" />
-            <span class="player-name">{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
+            <span
+              class="player-name"
+            >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
             >{{ baslayanOyuncu==currentUser.email ? skor[rakip.email] : skor[currentUser.email] }}</span>
@@ -34,15 +38,35 @@
     </div>
     <div
       class="dortleme-container"
-      :class="hamleSirasi!=currentUser.email ? 'cursor-not-allowed' : ''"
+      :class="hamleSirasi!=currentUser.email ? 'cursor-not-allowed tooltip' : ''"
     >
-      <div class="dortleme" :class="hamleSirasi!=currentUser.email ? 'pointer-events-none' : ''">
+      <div
+        class="tooltiptext"
+        :style="hamleSirasi!=currentUser.email ? 'display:block' : 'display:none'"
+      >
+        <span>Hamle sırası rakip oyuncuda.</span>
+        <span>Hamle yapamassınız.</span>
+      </div>
+
+      <div class="dortleme" :class="hamleSirasi!=currentUser.email ? 'pointer-events-none ' : ''">
         <div v-for="row in 6" :key="row" class="row-container">
           <div v-for="col in 8" :key="col">
             <div @click="hamle" :class="renkYerlestir(row,col)" class="hucre" :row="row" :col="col"></div>
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="alert-bottom-container" v-if="!isOpenAlert">
+      <div class="msg msg-error z-depth-2 scale-transition center">
+        <span>Rakip oyuncu beklenmektedir.</span>
+      </div>
+    </div>
+
+    <notifications position="top center" group="alert" />
+
+    <div v-if="isOpenModal">
+      <GameModal @modalClose="modalClose" @yeniOyun="yeniOyun" />
     </div>
   </div>
 </template>
@@ -55,11 +79,13 @@ library.add(faUser);
 
 import db from "@/firebase/init";
 import Navbar from "@/components/Navbar";
+import GameModal from "@/components/GameModal";
 
 export default {
   name: "Game",
   components: {
-    Navbar
+    Navbar,
+    GameModal
   },
   data() {
     return {
@@ -79,23 +105,62 @@ export default {
       kazananOyuncu: null,
       skor: {},
       skorArtirilsinMi: true,
+      isOpenModal: false,
+      isOpenAlert: false
     };
   },
   created() {
     this.currentUser = this.$session.get("user");
     this.oyunNo = this.$session.get("oyunNo");
     this.whichPlayerStart();
-    console.log(this.hamleSirasi)
     this.rakip = this.$session.get("rakipOyuncu");
     this.skor[this.currentUser.email] = 0;
     this.skor[this.rakip.email] = 0;
     this.hamlelerListele();
     this.kazananOyuncuGetir();
+    this.kazananOyuncuSifirla();
     this.skorGetir();
-    
+    this.oyuncuKadroTamamlandiMi();
+    //this.oyuncuKadroDurumGuncelle();
   },
-  
   methods: {
+    oyuncuKadroTamamlandiMi() {
+      db.collection("game_rooms")
+        .where("oyunNo", "==", this.oyunNo)
+        .onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            if ((change.type == "modified" || change.type=="added") && change.doc.data().oyuncuKadroTamamMi == true) {
+              this.isOpenAlert = true;
+            }
+          });
+        });
+    },
+    notificationAlert(title, text) {
+      this.$notify({
+        group: "alert",
+        title: title,
+        text: text,
+        type: "warn"
+      });
+    },
+    modalClose() {
+      this.isOpenModal = false;
+    },
+    yeniOyun() {
+      db.collection("hamleler")
+        .where("oyunNo", "==", this.oyunNo)
+        .get()
+        .then(hamleler => {
+          hamleler.forEach(doc => {
+            db.collection("hamleler")
+              .doc(doc.id)
+              .delete();
+          });
+        });
+      //  this.isOpenModal = false;
+      this.kazananOyuncuSifirla();
+      this.hamleler = [];
+    },
     whichPlayerStart() {
       let ref = db.collection("game_rooms").doc(this.oyunNo);
       ref
@@ -110,23 +175,27 @@ export default {
           } else {
             this.aktifTakim = 2;
           }
-        }).then(()=>{
-          this.hamleSırasiGetir()
         })
+        .then(() => {
+          this.hamleSırasiGetir();
+        });
     },
     hamle(event) {
-      this.tumHamlelerYapildiMi()
-      console.log(this.hamleler.length)
-      this.hamleSayiArtir();
       const col = parseInt(event.toElement.attributes.col.value);
       let enAltSatir = this.altSatirBul(col);
-      this.row = enAltSatir;
-      this.col = col;
-      this.renk = this.takimRenkGetir();
-      this.takimNo = this.aktifTakim;
-      this.takimDegistir();
-      this.hamleKaydet();
-      this.hamleSirasiDegistir();
+      if (enAltSatir) {
+        console.log(enAltSatir);
+        this.row = enAltSatir;
+        this.col = col;
+        this.hamleSayiArtir();
+        this.renk = this.takimRenkGetir();
+        this.takimNo = this.aktifTakim;
+        this.takimDegistir();
+        this.hamleKaydet();
+        this.hamleSirasiDegistir();
+      } else {
+        this.notificationAlert("Uyarı", "Hamle yapmak istediğiniz satir dolu.");
+      }
     },
     hamlelerListele() {
       db.collection("hamleler")
@@ -153,21 +222,15 @@ export default {
       });
     },
     hamleSırasiGetir() {
-
-
       db.collection("game_rooms")
         .where("oyunNo", "==", this.oyunNo)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
-            if (change.type == "modified" || change.type=="added") {
-             this.hamleSirasi = change.doc.data().hamleSirasi;
-             console.log("geldi")
-             console.log(this.hamleSirasi)
+            if (change.type == "modified" || change.type == "added") {
+              this.hamleSirasi = change.doc.data().hamleSirasi;
             }
           });
         });
-
-
     },
     sonHamleGetir() {
       let scope = this;
@@ -226,7 +289,7 @@ export default {
         });
     },
     dbreset() {
-      this.hamleler=[]
+      this.hamleler = [];
       var jobskill_query = db
         .collection("hamleler")
         .where("oyunNo", "==", this.oyunNo);
@@ -339,7 +402,6 @@ export default {
     dikeyKontrol(satirNo, sutunNo) {
       let hucreSayisi = this.dikeyYukaridanKontrol(satirNo, sutunNo);
       if (this.dortluTamamlandimi(hucreSayisi)) {
-
         this.oyunTamamlandi();
       }
     },
@@ -391,7 +453,6 @@ export default {
       for (let index = sutunNo; index > 0; index--) {
         renkKodu = this.hucreRenginiGetir(satirNo, index);
         if (renkKodu == this.takimNo) {
-       
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -422,6 +483,16 @@ export default {
         kazananOyuncu: this.currentUser.email
       });
     },
+    kazananOyuncuSifirla() {
+      if (this.kazananOyuncu) {
+        db.collection("game_rooms")
+          .doc(this.oyunNo)
+          .update({
+            kazananOyuncu: null
+          });
+        this.isOpenModal = false;
+      }
+    },
     kazananOyuncuGetir() {
       let ref = db.collection("game_rooms");
       ref.onSnapshot(snapshot => {
@@ -433,6 +504,7 @@ export default {
           ) {
             this.kazananOyuncu = change.doc.data().kazananOyuncu;
             this.skor = change.doc.data().skor;
+            this.isOpenModal = true;
           }
         });
       });
@@ -452,7 +524,7 @@ export default {
           }
         });
       });
-      this.skorArtirilsinMi=true
+      this.skorArtirilsinMi = true;
     },
     altSatirBul(sutun) {
       for (let index = 6; index > 0; index--) {
@@ -508,14 +580,10 @@ export default {
       }
     },
     oyunTamamlandi() {
-        this.kazananOyuncuEkle();
-        this.skorArtir();
+      this.kazananOyuncuEkle();
+      this.skorArtir();
     },
-    tumHamlelerYapildiMi(){
-     if(this.hamleler.length>=48){
-       alert("Tüm  hamleler tamamlandı")
-     }
-    },
+
     oyunuKazandiMi(satir, sutun) {
       var kontrolYapilsinmi = false;
       if (this.takimNo == 1) {
