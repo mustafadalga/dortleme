@@ -21,7 +21,13 @@
           </p>
         </div>
 
-        <div class="col s3 offset-s6">
+        <div class="col s4 offset-s1">
+          <div class="msg z-depth-2 deep-purple darken-1 white-text">
+            <span>Hamle yapacak oyuncu:{{ hamleSirasi==currentUser.email ? currentUser.username : rakip.username }}</span>
+          </div>
+        </div>
+
+        <div class="col s3 offset-s1">
           <p
             class="z-depth-1 white-text bg-green card-green-team"
             :class="hamleSirasi!=baslayanOyuncu ? 'aktif-takim-border' : ''"
@@ -32,7 +38,7 @@
             >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
-            >{{ baslayanOyuncu==currentUser.email ?  skor[getPlayerIndex(rakip.username)].puan :  skor[getPlayerIndex(currentUser.username)].puan }}</span>
+            >{{ baslayanOyuncu==currentUser.email ? skor[getPlayerIndex(rakip.username)].puan : skor[getPlayerIndex(currentUser.username)].puan }}</span>
           </p>
         </div>
       </div>
@@ -47,7 +53,7 @@
         :style="hamleSirasi!=currentUser.email ? 'display:block' : 'display:none'"
       >
         <span>Hamle sırası rakip oyuncuda.</span>
-        <span>Hamle yapamassınız.</span>
+        <span>Hamle yapamazsınız.</span>
       </div>
 
       <div class="dortleme" :class="hamleSirasi!=currentUser.email ? 'pointer-events-none ' : ''">
@@ -74,7 +80,7 @@
 
     <div v-if="isOpenModal">
       <GameModal
-        @modalClose="modalClose"
+        @oyundanCik="oyundanCik"
         @yeniOyun="yeniOyun"
         :kazananOyuncu="kazananOyuncu"
         :skor="skor"
@@ -137,10 +143,10 @@ export default {
   },
   methods: {
     getPlayerIndex(username) {
-      let index= this.skor.findIndex(player => {
+      let index = this.skor.findIndex(player => {
         return player.username === username;
       });
-     return index
+      return index;
     },
     oyuncuKadroTamamlandiMi() {
       db.collection("game_rooms")
@@ -177,8 +183,37 @@ export default {
         type: "warn"
       });
     },
-    modalClose() {
-      this.isOpenModal = false;
+    oyundanCik() {
+      this.oyunHamleSil();
+      this.aktifOyunSil();
+      this.aktifOyuncuDurumDegistir();
+    },
+    oyunHamleSil() {
+      db.collection("hamleler")
+        .where("oyunNo", "==", this.oyunNo)
+        .get()
+        .then(hamleler => {
+          hamleler.forEach(doc => {
+            db.collection("hamleler")
+              .doc(doc.id)
+              .delete();
+          });
+        });
+    },
+    aktifOyunSil() {
+      db.collection("game_rooms")
+        .doc(this.oyunNo)
+        .delete();
+    },
+    aktifOyuncuDurumDegistir() {
+      db.collection("game_users")
+        .doc(this.currentUser.email)
+        .update({
+          is_play: false
+        })
+        .then(() => {
+          this.$router.push({ name: "Home" });
+        });
     },
     yeniOyun() {
       db.collection("hamleler")
