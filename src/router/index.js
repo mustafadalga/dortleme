@@ -4,7 +4,7 @@ import Home from '../views/Home.vue'
 import Game from '../views/Game.vue'
 import Login from '../views/auth/Login.vue'
 import Signup from '../views/auth/Signup.vue'
-import Notifications from '@/components/Notifications'
+import Notifications from '../views/Notifications.vue'
 import db from '@/firebase/init'
 
 Vue.use(VueRouter)
