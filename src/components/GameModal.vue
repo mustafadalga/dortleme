@@ -99,7 +99,7 @@ export default {
     oyundanCik() {
       this.animatedCSS = false;
       setTimeout(() => {
-        this.$emit("modalClose");
+        this.$emit("oyundanCik");
       }, 500);
       //
     }
