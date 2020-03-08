@@ -16,7 +16,8 @@
             <font-awesome-icon :icon="['fas', 'user']" />
             <span
               class="btn-floating waves-effect waves-light skor skor-bg-red"
-            >{{ baslayanOyuncu==currentUser.email ? skor[currentUser.username] : skor[rakip.username] }}</span>
+            >{{ baslayanOyuncu==currentUser.email ? skor[getPlayerIndex(currentUser.username)].puan : skor[getPlayerIndex(rakip.username)].puan }}</span>
+            <span>{{ }}</span>
           </p>
         </div>
 
@@ -31,7 +32,7 @@
             >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
-            >{{ baslayanOyuncu==currentUser.email ? skor[rakip.username] : skor[currentUser.username] }}</span>
+            >{{ baslayanOyuncu==currentUser.email ?  skor[getPlayerIndex(rakip.username)].puan :  skor[getPlayerIndex(currentUser.username)].puan }}</span>
           </p>
         </div>
       </div>
@@ -116,7 +117,7 @@ export default {
       baslayanOyuncu: null,
       hamleSirasi: null,
       kazananOyuncu: null,
-      skor: {},
+      skor: [],
       skorArtirilsinMi: true,
       isOpenModal: false,
       isOpenAlert: false,
@@ -135,6 +136,12 @@ export default {
     this.oyuncuKadroTamamlandiMi();
   },
   methods: {
+    getPlayerIndex(username) {
+      let index= this.skor.findIndex(player => {
+        return player.username === username;
+      });
+     return index
+    },
     oyuncuKadroTamamlandiMi() {
       db.collection("game_rooms")
         .where("oyunNo", "==", this.oyunNo)
