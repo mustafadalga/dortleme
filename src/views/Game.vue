@@ -134,6 +134,7 @@ export default {
   },
   created() {
     this.currentUser = this.$session.get("user");
+    this.updatePlayersPlayingStatus(true)
     this.oyunNo = this.$session.get("oyunNo");
     this.whichPlayerStart();
     this.rakip = this.$session.get("rakipOyuncu");
@@ -143,8 +144,13 @@ export default {
     this.skorGetir();
     this.oyuncuKadroTamamlandiMi();
   },
-
   methods: {
+    updatePlayersPlayingStatus(status) {
+      let ref = db.collection("game_users");
+      ref.doc(this.currentUser.email).update({
+        is_play: status
+      });
+    },
     hamleSoundEfeck() {
       var snd = new Audio(HamleSoundFile);
       snd.play();
@@ -195,9 +201,10 @@ export default {
       });
     },
     oyundanCik() {
+      this.updatePlayersPlayingStatus(false)
       this.oyunHamleSil();
       this.aktifOyunSil();
-      this.aktifOyuncuDurumDegistir();
+      this.$router.push({name:'Home'})
     },
     oyunHamleSil() {
       db.collection("hamleler")
@@ -215,16 +222,6 @@ export default {
       db.collection("game_rooms")
         .doc(this.oyunNo)
         .delete();
-    },
-    aktifOyuncuDurumDegistir() {
-      db.collection("game_users")
-        .doc(this.currentUser.email)
-        .update({
-          is_play: false
-        })
-        .then(() => {
-          this.$router.push({ name: "Home" });
-        });
     },
     yeniOyun() {
       db.collection("hamleler")
@@ -268,7 +265,7 @@ export default {
         });
     },
     oyuncuHamleSes() {
-      var snd = new Audio("../src/assets/sound/hamle.mp3"); // buffers automatically when created
+      var snd = new Audio("../src/assets/sound/hamle.mp3");
       snd.play();
     },
     hamle(event) {
