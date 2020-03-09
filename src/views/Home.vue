@@ -15,18 +15,23 @@
 
         <h3 class="heading center">Aktif Kullanıcılar</h3>
         <div class="row center">
-          <div class="col s8 offset-s2">
+          <div class="col s12 m6 offset-m3">
             <div v-if="activeUsers.length<1">
               <div class="msg msg-error z-depth-2">
                 <p>Online kullanıcı bulunmamaktadır.</p>
               </div>
             </div>
-            <div v-if="istekGonderildiMi" class="scale-transition" :class="scale">
-              <div class="msg msg-info z-depth-2" v-if="istekGonderildiMi.status">
-                <p>{{ istekGonderildiMi.username }} kullanıcısına oyun isteği gönderildi</p>
-              </div>
-              <div class="msg msg-error z-depth-2" v-else-if="!istekGonderildiMi.status">
-                <p>{{ istekGonderildiMi.username }} kullanıcına zaten oyun isteği gönderildi</p>
+
+            <div
+              class="scale-transition"  
+              :class="scaleCSS"
+              :style="msgContainerHeight"
+            >
+              <div class="msg  z-depth-2" :class="msgTypeCSS">
+                <p
+                  v-if="!istekGonderildiMi.status"
+                >{{ istekGonderildiMi.username }} kullanıcısına oyun isteği gönderildi</p>
+                <p v-else>{{ istekGonderildiMi.username }} kullanıcına zaten oyun isteği gönderildi</p>
               </div>
             </div>
 
@@ -66,11 +71,13 @@ export default {
     return {
       activeUsers: [],
       rakipOyuncu: null,
-      scale: "scale-out",
+      scaleCSS: "scale-out",
+      msgTypeCSS: "msg-default",
+      msgContainerHeight: "height:0",
       gameRequests: [],
-      istekGonderildiMi: null,
+      istekGonderildiMi: { status: false, username: null },
       oyunNo: false,
-      timeoutHandle:null,
+      timeoutHandle: null
     };
   },
   created() {
@@ -88,8 +95,8 @@ export default {
   },
   methods: {
     oyunIstekGonder(user) {
-     window.clearTimeout(this.timeoutHandle);
-     this.buttonRequestAddCSS(user)
+      window.clearTimeout(this.timeoutHandle);
+      this.buttonRequestAddCSS(user);
 
       db.collection("notifications")
         .where("statusCode", "==", 0)
@@ -113,15 +120,28 @@ export default {
             });
             this.istekGonderildiMi = { username: user.username, status: true };
           }
+        })
+        .then(() => {
+          this.msgContainerHeight = "height:auto";
+          if (this.istekGonderildiMi.status) {
+            this.msgTypeCSS = "msg-info";
+          } else {
+            this.msgTypeCSS = "msg-error";
+          }
+          this.scaleCSS = "scale-in";
+          this.timeoutHandle = window.setTimeout(() => {
+            this.scaleCSS = "scale-out";
+          }, 4000);
+          this.timeoutHandle = window.setTimeout(() => {
+            this.msgContainerHeight = "height:0";
+          }, 4300);
         });
-      this.scale = "";
-     this.timeoutHandle= window.setTimeout(() => (this.scale = "scale-out"), 4000);
     },
-    buttonRequestAddCSS(user){
-     let buttonRef=this.$refs[user.username][0]
-     buttonRef.innerText = "İstek Gönderildi";
-     buttonRef.style.border='1px solid rgb(83, 109, 254)'
-     buttonRef.disabled=true
+    buttonRequestAddCSS(user) {
+      let buttonRef = this.$refs[user.username][0];
+      buttonRef.innerText = "İstek Gönderildi";
+      buttonRef.style.border = "1px solid rgb(83, 109, 254)";
+      buttonRef.disabled = true;
     },
     addGameUsers() {
       let ref = db.collection("game_users").doc(this.currentUser.email);
@@ -344,5 +364,11 @@ export default {
   border-color: #0288d1;
   background-color: #29b6f6;
   color: white;
+}
+@media (max-width: 500px) {
+    .btn-game-request{
+        padding: 0 8px;
+
+    }
 }
 </style>
