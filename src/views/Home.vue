@@ -16,18 +16,14 @@
         <h3 class="heading center">Aktif Kullanıcılar</h3>
         <div class="row center">
           <div class="col s12 m6 offset-m3">
-            <div v-if="activeUsers.length<1">
+            <div v-if="onlineUsers.length<1">
               <div class="msg msg-error z-depth-2">
                 <p>Online kullanıcı bulunmamaktadır.</p>
               </div>
             </div>
 
-            <div
-              class="scale-transition"  
-              :class="scaleCSS"
-              :style="msgContainerHeight"
-            >
-              <div class="msg  z-depth-2" :class="msgTypeCSS">
+            <div class="scale-transition" :class="scaleCSS" :style="msgContainerHeight">
+              <div class="msg z-depth-2" :class="msgTypeCSS">
                 <p
                   v-if="!istekGonderildiMi.status"
                 >{{ istekGonderildiMi.username }} kullanıcısına oyun isteği gönderildi</p>
@@ -35,8 +31,8 @@
               </div>
             </div>
 
-            <ul class="collection" v-for="(user,index) in activeUsers" :key="index">
-              <li class="collection-item collection-item-user">
+            <ul class="collection" v-for="(user,index) in onlineUsers" :key="index">
+              <li class="collection-item collection-item-user" v-if="!user.is_play">
                 <div class="collection-user">
                   <div class="online-status"></div>
                   <span>{{ user.username}}</span>
@@ -46,6 +42,13 @@
                   class="btn btn-game-request indigo accent-2"
                   @click="oyunIstekGonder(user)"
                 >İstek Gönder</button>
+              </li>
+              <li class="collection-item collection-item-user" v-if="user.is_play">
+                <div class="collection-user">
+                  <div class="offline-status"></div>
+                  <span>{{ user.username}}</span>
+                </div>
+              
               </li>
             </ul>
           </div>
@@ -69,7 +72,7 @@ export default {
   },
   data() {
     return {
-      activeUsers: [],
+      onlineUsers: [],
       rakipOyuncu: null,
       scaleCSS: "scale-out",
       msgTypeCSS: "msg-default",
@@ -155,124 +158,40 @@ export default {
         }
       });
     },
-    updateGameUsers() {
-      let ref = db.collection("game_users");
-      ref.doc(this.currentUser.email).update({
-        is_play: true
-      });
-      ref.doc(this.rakipOyuncu.email).update({
-        is_play: true
-      });
-    },
     getGameUsers() {
       db.collection("game_users")
-        .where("is_play", "==", false)
+        //.where("is_play", "==", false)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
             let doc = change.doc;
-
             var user = {
               user_id: doc.data().user_id,
               username: doc.data().username,
-              email: doc.id
+              email: doc.id,
+              is_play: doc.data().is_play
             };
-
+            console.log(change);
             if (change.type === "added") {
               if (doc.data().user_id != this.currentUser.id) {
-                let userIndex = this.activeUsers.findIndex(
+                let userIndex = this.onlineUsers.findIndex(
                   element => element.user_id == user.user_id
                 );
                 if (userIndex === -1) {
-                  this.activeUsers.push(user);
+                  this.onlineUsers.push(user);
                 }
               }
+            } else if (change.type == "modified") {
+              this.onlineUsers = this.onlineUsers.filter(element => {
+                return element.user_id != user.user_id;
+              });
+              this.onlineUsers.push(user);
             } else if (change.type === "removed") {
-              this.activeUsers = this.activeUsers.filter(element => {
+              this.onlineUsers = this.onlineUsers.filter(element => {
                 return element.user_id != user.user_id;
               });
             }
           });
         });
-    },
-    senderYeniOyun(user) {
-      db.collection("game_rooms")
-        .get()
-        .then(docs => {
-          docs.forEach(doc => {
-            let room = doc.data();
-            let oyuncular = room.oyuncular;
-            if (
-              oyuncular.includes(this.currentUser.email) &&
-              oyuncular.includes(user.receiverEmail)
-            ) {
-              this.oyunSessionTanimla(user, room.oyunNo);
-              return true;
-            }
-          });
-        })
-        .then(() => {
-          if (this.oyunTanimliMi()) {
-            this.oyunaYonlendir();
-          } else {
-            this.oyunOdasiOlustur(user);
-            this.oyunSessionTanimla(user, this.oyunNo);
-            this.oyunaYonlendir();
-          }
-        });
-    },
-    receiveryeniOyun(user) {
-      db.collection("game_rooms")
-        .get()
-        .then(docs => {
-          docs.forEach(doc => {
-            let room = doc.data();
-            let oyuncular = room.oyuncular;
-            if (
-              oyuncular.includes(this.currentUser.email) &&
-              oyuncular.includes(user.senderEmail)
-            ) {
-              this.oyunSessionTanimla(user, room.oyunNo);
-              return true;
-            }
-          });
-        })
-        .then(() => {
-          if (this.oyunTanimliMi()) {
-            this.oyunaYonlendir();
-          } else {
-            this.oyunOdasiOlustur(user);
-            this.oyunSessionTanimla(user, this.oyunNo);
-            this.oyunaYonlendir();
-          }
-        });
-    },
-    oyunTanimliMi() {
-      if (this.$session.exists("oyunNo")) {
-        return true;
-      } else {
-        return false;
-      }
-    },
-    oyunSessionTanimla(user, oyunNo) {
-      this.$session.set("rakipOyuncu", user);
-      this.$session.set("oyunNo", oyunNo);
-    },
-    oyunaYonlendir() {
-      this.$router.push({ name: "Game" });
-    },
-    oyunOdasiOlustur(user) {
-      this.oyunNo = Date.now().toString();
-      let ref = db.collection("game_rooms").doc(this.oyunNo);
-      ref.get().then(doc => {
-        if (!doc.exists) {
-          ref.set({
-            oyunNo: this.oyunNo,
-            oyuncular: [this.currentUser.email, user.senderEmail]
-          });
-        } else {
-          this.oyunOdasiOlustur(user);
-        }
-      });
     },
 
     dbreset() {
@@ -306,12 +225,7 @@ export default {
   }
 };
 </script>
-
 <style lang="css" scoped>
-:root {
-  background: #fff !important;
-}
-
 .home {
   margin-top: 60px;
 }
@@ -325,6 +239,13 @@ export default {
 }
 .online-status {
   background: limegreen;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  margin-right: 1em;
+}
+.offline-status {
+  background: crimson;
   width: 0.5em;
   height: 0.5em;
   border-radius: 50%;
@@ -366,9 +287,8 @@ export default {
   color: white;
 }
 @media (max-width: 500px) {
-    .btn-game-request{
-        padding: 0 8px;
-
-    }
+  .btn-game-request {
+    padding: 0 8px;
+  }
 }
 </style>
