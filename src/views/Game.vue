@@ -98,6 +98,8 @@ library.add(faUser);
 import db from "@/firebase/init";
 import Navbar from "@/components/Navbar";
 import GameModal from "@/components/GameModal";
+import HamleSoundFile from "@/assets/sound/hamle.mp3";
+import WinnerSoundFile from "@/assets/sound/winner.mp3";
 
 export default {
   name: "Game",
@@ -141,7 +143,16 @@ export default {
     this.skorGetir();
     this.oyuncuKadroTamamlandiMi();
   },
+
   methods: {
+    hamleSoundEfeck() {
+      var snd = new Audio(HamleSoundFile);
+      snd.play();
+    },
+    WinnerSoundEfeck() {
+      var snd = new Audio(WinnerSoundFile);
+      snd.play();
+    },
     getPlayerIndex(username) {
       let index = this.skor.findIndex(player => {
         return player.username === username;
@@ -256,7 +267,12 @@ export default {
           this.hamleSırasiGetir();
         });
     },
+    oyuncuHamleSes() {
+      var snd = new Audio("../src/assets/sound/hamle.mp3"); // buffers automatically when created
+      snd.play();
+    },
     hamle(event) {
+      this.hamleSoundEfeck();
       const col = parseInt(event.toElement.attributes.col.value);
       let enAltSatir = this.altSatirBul(col);
       if (enAltSatir) {
@@ -577,8 +593,10 @@ export default {
             change.doc.id == this.oyunNo &&
             change.doc.data().kazananOyuncu
           ) {
+            this.WinnerSoundEfeck();
             this.kazananOyuncu = change.doc.data().kazananOyuncu;
             this.getWinnerUsername();
+
             this.skor = change.doc.data().skor;
             this.isOpenModal = true;
           }
@@ -685,5 +703,5 @@ export default {
 </script>
 
 <style lang="css" scoped>
-@import "../../src/assets/css/dortleme.css";
+@import "../assets/css/dortleme.css";
 </style>
