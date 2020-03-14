@@ -4,7 +4,7 @@
     <div class="signup container">
       <form class="card-panel" @submit.prevent="SignUp">
         <h2 class="center deep-purple-text">Signup</h2>
-          <div class="field">
+        <div class="field">
           <label for="email">Username:</label>
           <input type="text" name="username" v-model="username" />
         </div>
@@ -42,10 +42,10 @@ export default {
       feedback: null
     };
   },
-  methods:{
-        SignUp() {
+  methods: {
+    SignUp() {
       if (this.username && this.email && this.password) {
-        let ref = db.collection("users").doc(this.email); //slug'a id olarak gönderilip böyle bir id var mı yok mu kontrol yapılıyor.
+        let ref = db.collection("users").doc(this.email);
         ref.get().then(doc => {
           if (doc.exists) {
             this.feedback = "This is already exists";
@@ -56,15 +56,14 @@ export default {
               .then(user => {
                 ref.set({
                   username: this.username,
-                  user_id: user.user.uid,
-                  online_status:false,
+                  user_id: user.user.uid
                 });
+                this.createUserScoreSystem();
               })
               .then(() => {
                 this.$router.push({ name: "Login" });
               })
               .catch(error => {
-                console.log(error);
                 this.feedback = error.message;
               });
             //  this.feedback='This alias is free to use'
@@ -74,6 +73,12 @@ export default {
       } else {
         this.feedback = "You must enter all fields";
       }
+    },
+    createUserScoreSystem() {
+      db.collection("scores").add({
+        email: this.email,
+        score: 0
+      });
     }
   }
 };
