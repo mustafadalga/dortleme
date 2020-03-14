@@ -140,9 +140,6 @@ export default {
       //  event.returnValue = "";
     });
     this.currentUser = this.$session.get("user");
-    // this.updateNotificationsSeenStatus();
-    this.addGameUsers();
-    this.getGameUsers();
     this.getNotifications();
   },
 
