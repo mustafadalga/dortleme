@@ -46,9 +46,6 @@ export default {
           .auth()
           .signInWithEmailAndPassword(this.email, this.password)
           .then(() => {
-            this.updateOnlineStatus();
-            
-          }).then(()=>{
               this.getCurrentUser();
           })
           .catch(error => {
@@ -79,12 +76,6 @@ export default {
     createNotificationSession() {
       this.$session.set("notificationCount", 0);
     },
-    updateOnlineStatus() {
-      let ref = db.collection("users").doc(this.email);
-      ref.update({
-        online_status: true
-      });
-    }
   }
 };
 </script>
