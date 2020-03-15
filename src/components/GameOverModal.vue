@@ -17,8 +17,8 @@
           <div class="col s12 m6 offset-m3">
             <div class="card teal darken-1">
               <div class="card-content white-text center">
-                <span class="card-title">Kazanan Oyuncu</span>
-                <p>{{ kazananOyuncu }}</p>
+                <span class="card-title">{{ kazananOyuncu ? "Kazanan Oyuncu": "Oyun Berabere Bitti" }}</span>
+                <p>{{ kazananOyuncu ?  (kazananOyuncu == currentUser.email ? currentUser.username : rakip.username) : "" }}</p>
               </div>
               <hr />
               <div class="card-content white-text center modal-skor-durum">
@@ -28,16 +28,16 @@
                     <p>
                       <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
                     </p>
-                    <p>{{ skor[kazananOyuncuIndex].username}}</p>
-                    <p>{{ skor[kazananOyuncuIndex].puan}}</p>
+                    <p>{{ kazananOyuncu ? (kazananOyuncu == currentUser.email ? currentUser.username : rakip.username) : currentUser.username }}</p>
+                    <p>{{ kazananOyuncu ? (kazananOyuncu == currentUser.email ? currentUserSkor : rakipSkor) :currentUserSkor }}</p>
                   </div>
                   <div class="col s12 m6">
                     <p>
                       <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
                     </p>
-                    <p> {{ skor[kaybedenOyuncuIndex].username }} </p>
+                    <p>{{  kazananOyuncu ? (kazananOyuncu == currentUser.email ? rakip.username : currentUser.username) : rakip.username }}</p>
+                  <p>{{ kazananOyuncu ? (kazananOyuncu == currentUser.email ? rakipSkor : currentUserSkor) : rakipSkor }}</p>
 
-                    <p>{{ skor[kaybedenOyuncuIndex].puan}}</p>
                   </div>
                 </div>
               </div>
@@ -64,8 +64,8 @@ import { library } from "@fortawesome/fontawesome-svg-core";
 library.add(faTrophy, faUser);
 
 export default {
-  name:'GameOverModal',
-  props: ["kazananOyuncu", "skor"],
+  name: "GameOverModal",
+  props: ["kazananOyuncu", "currentUserSkor", "rakipSkor"],
   data() {
     return {
       animatedCSS: true,
@@ -77,20 +77,8 @@ export default {
   created() {
     this.currentUser = this.$session.get("user");
     this.rakip = this.$session.get("rakipOyuncu");
-    this.getPlayerIndex();
   },
-  mounted() {},
   methods: {
-    getPlayerIndex() {
-      this.kazananOyuncuIndex = this.skor.findIndex(player => {
-        return player.username === this.kazananOyuncu;
-      });
-      if (this.kazananOyuncuIndex == 0) {
-        this.kaybedenOyuncuIndex = 1;
-      }else{
-         this.kaybedenOyuncuIndex = 0;
-      }
-    },
     yeniOyun() {
       this.animatedCSS = false;
       setTimeout(() => {
@@ -100,7 +88,7 @@ export default {
     oyundanCik() {
       this.animatedCSS = false;
       setTimeout(() => {
-        this.$emit("oyunCikis",this.$options.name);
+        this.$emit("oyunCikis", this.$options.name);
       }, 500);
     }
   }
