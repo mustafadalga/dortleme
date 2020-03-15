@@ -109,18 +109,14 @@ import Navbar from "@/components/Navbar";
 import { format } from "timeago.js";
 
 export default {
-  name: "Login",
+  name: "Notifications",
   components: {
     Navbar
   },
   data() {
     return {
-      activeUsers: [],
       acceptedRequests: [],
       rejectedRequests: [],
-      rakipOyuncu: null,
-      feedback: null,
-      scale: "scale-out",
       notifications: []
     };
   },
@@ -262,12 +258,41 @@ export default {
         .then(() => {
           if (this.oyunTanimliMi()) {
             this.oyuncuKadroTamamla();
-            this.oyunaYonlendir();
+            this.bildirimSil();
+            //   this.oyunaYonlendir();
           } else {
             this.oyunOdasiOlustur(opponent);
             this.oyunSessionTanimla(opponent, this.oyunNo);
             this.oyunaYonlendir();
           }
+        });
+    },
+    bildirimSil() {
+      let rakip = this.$session.get("rakipOyuncu");
+      db.collection("notifications")
+        .where("senderEmail", "in", [this.currentUser.email, rakip.email])
+        .get()
+        .then(notifications => {
+          notifications.forEach(notification => {
+            db.collection("notifications")
+              .doc(notification.id)
+              .delete();
+          });
+        })
+        .then(() => {
+          db.collection("notifications")
+            .where("receiverEmail", "in", [this.currentUser.email, rakip.email])
+            .get()
+            .then(notifications => {
+              notifications.forEach(notification => {
+                db.collection("notifications")
+                  .doc(notification.id)
+                  .delete();
+              });
+            });
+        })
+        .then(() => {
+          this.oyunaYonlendir();
         });
     },
     oyunTanimliMi() {
@@ -295,15 +320,6 @@ export default {
     oyunOdasiOlustur(opponent) {
       this.oyunNo = Date.now().toString();
       let currentEmail = this.currentUser.email;
-      let skor = [];
-      skor.push({
-        username: this.currentUser.username,
-        puan: 0
-      });
-      skor.push({
-        username: opponent.username,
-        puan: 0
-      });
       let ref = db.collection("game_rooms").doc(this.oyunNo);
       ref.get().then(doc => {
         if (!doc.exists) {
@@ -313,15 +329,13 @@ export default {
             oyunuBaslatanEmail: currentEmail,
             hamleSirasi: currentEmail,
             kazananOyuncu: null,
-            skor: skor,
             oyuncuKadroTamamMi: false
           });
         } else {
           this.oyunOdasiOlustur(opponent);
         }
       });
-    },
-
+    }
   }
 };
 </script>
