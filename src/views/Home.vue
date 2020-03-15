@@ -48,7 +48,6 @@
                   <div class="offline-status"></div>
                   <span>{{ user.username}}</span>
                 </div>
-              
               </li>
             </ul>
           </div>
@@ -66,7 +65,7 @@ library.add(faDiceTwo);
 import db from "@/firebase/init";
 import Navbar from "@/components/Navbar";
 export default {
-  name: "Login",
+  name: "Home",
   components: {
     Navbar
   },
@@ -94,7 +93,7 @@ export default {
     this.$session.remove("oyunNo");
     this.currentUser = this.$session.get("user");
     this.addGameUsers();
-    this.getGameUsers();
+    this.getOnlineUser();
   },
   methods: {
     oyunIstekGonder(user) {
@@ -158,40 +157,37 @@ export default {
         }
       });
     },
-    getGameUsers() {
-      db.collection("game_users")
-        //.where("is_play", "==", false)
-        .onSnapshot(snapshot => {
-          snapshot.docChanges().forEach(change => {
-            let doc = change.doc;
-            var user = {
-              user_id: doc.data().user_id,
-              username: doc.data().username,
-              email: doc.id,
-              is_play: doc.data().is_play
-            };
-            console.log(change);
-            if (change.type === "added") {
-              if (doc.data().user_id != this.currentUser.id) {
-                let userIndex = this.onlineUsers.findIndex(
-                  element => element.user_id == user.user_id
-                );
-                if (userIndex === -1) {
-                  this.onlineUsers.push(user);
-                }
+    getOnlineUser() {
+      db.collection("game_users").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          let doc = change.doc;
+          var user = {
+            user_id: doc.data().user_id,
+            username: doc.data().username,
+            email: doc.id,
+            is_play: doc.data().is_play
+          };
+          if (change.type === "added") {
+            if (doc.data().user_id != this.currentUser.id) {
+              let userIndex = this.onlineUsers.findIndex(
+                element => element.user_id == user.user_id
+              );
+              if (userIndex === -1) {
+                this.onlineUsers.push(user);
               }
-            } else if (change.type == "modified") {
-              this.onlineUsers = this.onlineUsers.filter(element => {
-                return element.user_id != user.user_id;
-              });
-              this.onlineUsers.push(user);
-            } else if (change.type === "removed") {
-              this.onlineUsers = this.onlineUsers.filter(element => {
-                return element.user_id != user.user_id;
-              });
             }
-          });
+          } else if (change.type == "modified") {
+            this.onlineUsers = this.onlineUsers.filter(element => {
+              return element.user_id != user.user_id;
+            });
+            this.onlineUsers.push(user);
+          } else if (change.type === "removed") {
+            this.onlineUsers = this.onlineUsers.filter(element => {
+              return element.user_id != user.user_id;
+            });
+          }
         });
+      });
     },
 
     dbreset() {
