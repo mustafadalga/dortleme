@@ -114,6 +114,63 @@ body {
     pointer-events: none;
 }
 
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 60%;
+    background-color: #ef5350;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 1em;
+    /* Position the tooltip */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.tooltip .tooltiptext span {
+    display: block;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+}
+
+.msg {
+    width: 100%;
+    border: 1px solid;
+    padding: 10px;
+    color: grey;
+    word-wrap: break-word;
+}
+
+.msg-error {
+    border-color: #d32f2f;
+    background-color: #ef5350;
+    color: white;
+}
+
+.msg-alert {
+    border-color: #ef6c00;
+    background-color: #ff9800;
+    color: white;
+}
+
+.msg-info {
+    border-color: #0288d1;
+    background-color: #29b6f6;
+    color: white;
+}
+
+.alert-bottom-container {
+    position: absolute;
+    bottom: 0%;
+    left: 50%;
+    transform: translate(-50%, -25%)
+}
+
 
 /*MEDIA SCREEN*/
 
@@ -132,6 +189,9 @@ body {
     .card-red-team .player-name {
         display: none;
     }
+    .alert-bottom-container {
+        transform: translate(-50%, -30%)
+    }
 }
 
 @media (max-width: 600px) {
@@ -144,6 +204,9 @@ body {
     }
     .hucre {
         margin: 0.5em auto;
+    }
+    .alert-bottom-container {
+        transform: translate(-50%, -50%)
     }
 }
 
