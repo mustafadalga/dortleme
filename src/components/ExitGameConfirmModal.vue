@@ -2,11 +2,11 @@
 
 <template>
   <div class="exit-game-confirm-modal">
-    <div id="modal1" class="modal"    :class="animatedCSS ? 'animated bounceInDown': 'animated bounceOutUp'">
+    <div id="modal1" class="modal"   :class="animatedCSS ? 'animated bounceInDown': 'animated bounceOutUp'">
       <div class="modal-content">
         <h4>Uyarı</h4>
         <p>Oyundan çıkmak istediğinize emin misiniz ?</p>
-        <p>Oyundan çıkmanız halinde hükmen mağlup olacaksınız ve karşıdaki oyuncu oyunu kazanmış olacak.</p>
+        <p>{{ oyunDurumNo===1 ? "Oyundan çıkmanız halinde hükmen mağlup olacaksınız ve karşıdaki oyuncu oyunu kazanmış olacak." : null }}</p>
       </div>
       <div class="modal-footer">
          <button class="btn purple darken-3 waves-green" @click="modalClose">Hayır</button>
@@ -24,6 +24,7 @@
 
 export default {
   name:'ExitGameConfirmModal',
+  props:['oyunDurumNo'],
   data() {
     return {
       animatedCSS: true,
