@@ -1,6 +1,6 @@
 <template>
   <div id="game">
-    <Navbar @modalOpen="modalOpen" />
+    <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
     <button @click="dbreset">Sıfırla</button>
     <div class="container center">
       <div class="row">
@@ -76,27 +76,22 @@
     </div>
 
     <notifications position="top center" group="alert" />
-    <div v-if="modalName=='ExitGameConfirmModal'">
-      <ExitGameConfirmModal @oyunCikis="oyunCikis" @modalClose="modalClose" />
+
+    <div v-if="oyunDurumNo===1 || oyunDurumNo===2">
+      <ExitGameConfirmModal
+        @oyunCikis="oyunCikis"
+        :oyunDurumNo="oyunDurumNo"
+        @modalClose="modalClose"
+      />
     </div>
-    <div v-else-if="modalName=='GameOverModal'">
+    <div v-else-if="oyunDurumNo>2 && oyunDurumNo<8">
       <GameOverModal
         @yeniOyun="yeniOyun"
         @oyunCikis="oyunCikis"
         :kazananOyuncu="kazananOyuncu"
         :currentUserSkor="currentUserSkor"
         :rakipSkor="rakipSkor"
-        :oyunDurumKodNo="oyunDurumKodNo"
-      />
-    </div>
-    <div v-else-if="modalName=='ExitGameOverModal'">
-      <ExitGameOverModal @oyunCikis="oyunCikis" />
-    </div>
-    <div v-else-if="modalName=='ExitInGameModal'">
-      <ExitInGameModal
-        @oyunCikis="oyunCikis"
-        :currentUserSkor="currentUserSkor"
-        :oyunDurumKodNo="oyunDurumKodNo"
+        :oyunDurumNo="oyunDurumNo"
       />
     </div>
   </div>
@@ -112,8 +107,6 @@ import db from "@/firebase/init";
 import Navbar from "@/components/Navbar";
 import GameOverModal from "@/components/GameOverModal";
 import ExitGameConfirmModal from "@/components/ExitGameConfirmModal";
-import ExitGameOverModal from "@/components/ExitGameOverModal";
-import ExitInGameModal from "@/components/ExitInGameModal";
 import HamleSoundFile from "@/assets/sound/hamle.mp3";
 import WinnerSoundFile from "@/assets/sound/winner.mp3";
 
@@ -122,9 +115,7 @@ export default {
   components: {
     Navbar,
     GameOverModal,
-    ExitGameConfirmModal,
-    ExitInGameModal,
-    ExitGameOverModal
+    ExitGameConfirmModal
   },
   data() {
     return {
@@ -152,7 +143,7 @@ export default {
       oyunBittiMi: false,
       timeoutHandle: null,
       countDown: null,
-      oyunDurumKodNo: null,
+      oyunDurumNo: null,
       beklemeSuresiDolduMu: false
     };
   },
@@ -193,7 +184,7 @@ export default {
             (change.type == "modified" || change.type == "added") &&
             change.doc.data().oyunNo == this.oyunNo
           ) {
-            if (!this.oyuncuKadroTamamMi) {
+            if (!this.oyuncuKadroTamamMi && this.oyunDurumNo == null) {
               let simdikiZaman = change.doc.data().simdikiZaman.seconds;
               let bitisTarih = change.doc.data().bitisTarih.seconds;
               let kalanSure = bitisTarih - simdikiZaman;
@@ -204,16 +195,24 @@ export default {
                   console.log("devam ediliyor.");
                   db.collection("game_waits")
                     .doc(this.countDownTimerId)
-                    .update({
-                      simdikiZaman: new Date()
+                    .get()
+                    .then(doc => {
+                      if (doc.exists) {
+                        db.collection("game_waits")
+                          .doc(this.countDownTimerId)
+                          .update({
+                            simdikiZaman: new Date()
+                          });
+                      }
                     });
                 }, 1000);
               } else {
                 this.beklemeSuresiDolduMu = true;
-                this.oyunDurumKodNo = 1;
+                this.oyunBeklemeSuresiSil();
                 this.kazananOyuncuEkle(this.currentUser.email);
+                this.skorArtir(this.rakip.email);
                 setTimeout(() => {
-                  this.modalName = "ExitInGameModal";
+                  this.oyunDurumNo = 4;
                 }, 2000);
               }
             }
@@ -221,7 +220,6 @@ export default {
         });
       });
     },
-
     oyuncuKadroTamamlandiMi() {
       db.collection("game_rooms")
         .where("oyunNo", "==", this.oyunNo)
@@ -229,12 +227,13 @@ export default {
           snapshot.docChanges().forEach(change => {
             if (
               (change.type == "modified" || change.type == "added") &&
-              change.doc.data().oyuncuKadroTamamMi == true
+              change.doc.data().oyuncuKadroTamamMi
             ) {
               if (this.oyuncuKadroTamamMi == false) {
                 this.isOpenAlert = true;
-                //   window.clearTimeout(this.timeoutHandle);
                 this.oyuncuKadroTamamMi = true;
+                this.oyunBeklemeSuresiSil();
+                this.oyunDurumNo = 0;
                 this.scaleCSS = "scale-out";
 
                 window.setTimeout(() => {
@@ -247,16 +246,27 @@ export default {
                 }, 3000);
               }
             } else if (
-              (change.type == "modified" || change.type == "added") &&
-              change.doc.data().oyuncuKadroTamamMi == "GameOverModal"
+              (change.type === "added" || change.type === "modified") &&
+              change.doc.data().oyunDurumNo == 1
             ) {
-              this.modalName = "ExitGameOverModal";
+              this.oyunDurumNo = 3;
             } else if (
-              (change.type == "modified" || change.type == "added") &&
-              change.doc.data().oyuncuKadroTamamMi == "ExitGameConfirmModal"
+              (change.type === "added" || change.type === "modified") &&
+              change.doc.data().oyunDurumNo === 7
             ) {
-              this.oyunDurumKodNo = 2;
-              this.modalName = "ExitInGameModal";
+              this.oyunDurumNo = change.doc.data().oyunDurumNo;
+            }
+
+            if (
+              (change.type == "added" || change.type == "modified") &&
+              change.doc.data().oyunDurumNo == 5
+            ) {
+              this.oyunDurumNo = change.doc.data().oyunDurumNo;
+            } else if (
+              (change.type == "added" || change.type == "modified") &&
+              change.doc.data().oyunDurumNo == 6
+            ) {
+              this.oyunDurumNo = change.doc.data().oyunDurumNo;
             }
           });
         });
@@ -269,61 +279,97 @@ export default {
         type: "warn"
       });
     },
-    modalOpen(modalName) {
-      this.modalName = modalName;
+    openExitGameConfirmModal() {
+      if (this.oyuncuKadroTamamMi) {
+        this.oyunDurumNo = 1;
+      } else {
+        this.oyunDurumNo = 2;
+      }
     },
     modalClose() {
-      this.modalName = null;
+      this.oyunDurumNo = null;
     },
-
-    oyunCikis(componentName) {
+    oyunCikis() {
       this.updatePlayersPlayingStatus(false);
-
-      if (componentName == "ExitGameConfirmModal") {
-        this.oyuncuKadroDegistir("ExitGameConfirmModal");
-      } else if (componentName == "GameOverModal") {
-        this.oyuncuKadroDegistir("GameOverModal");
-      } else if (
-        componentName == "ExitGameOverModal" ||
-        componentName == "ExitInGameModal"
-      ) {
+      if (this.oyunDurumNo == 1) {
+        this.oyuncuKadroDegistir(false);
+        this.oyuncuDurumNoDegistir(1);
+        this.bildirimSil();
+        this.kazananOyuncuEkle(this.rakip.email);
+        this.skorArtir(this.rakip.email);
+      } else if (this.oyunDurumNo === 2) {
+        this.oyunDurumNo = 0;
+        this.bildirimSil();
+        this.oyunSil();
+        this.oyunBeklemeSuresiSil();
+      } else if (this.oyunDurumNo === 3) {
         this.oyunHamleSil();
-        this.bildirimSil()
+        this.oyunSil();
+      } else if (this.oyunDurumNo === 4) {
+        this.bildirimSil();
+        this.oyunHamleSil();
+        this.oyunSil();
+      } else if (this.oyunDurumNo === 5 || this.oyunDurumNo === 6) {
+        this.oyuncuKadroDegistir(false);
+        this.oyuncuDurumNoDegistir(7);
+        this.bildirimSil();
+      } else if (this.oyunDurumNo === 7) {
+        this.oyunHamleSil();
+        this.bildirimSil();
         this.oyunSil();
       }
       this.oyunSessionSil();
       this.$router.push({ name: "Home" });
     },
-      bildirimSil() {
-    let rakip = this.$session.get("rakipOyuncu");
-    db.collection("notifications")
-      .where("senderEmail", "in", [this.currentUser.email, rakip.email])
-      .get()
-      .then(notifications => {
-        notifications.forEach(notification => {
-          db.collection("notifications")
-            .doc(notification.id)
-            .delete();
-        });
-      })
-      .then(() => {
-        db.collection("notifications")
-          .where("receiverEmail", "in", [this.currentUser.email, rakip.email])
-          .get()
-          .then(notifications => {
-            notifications.forEach(notification => {
-              db.collection("notifications")
-                .doc(notification.id)
-                .delete();
-            });
+    bildirimSil() {
+      let rakip = this.$session.get("rakipOyuncu");
+      db.collection("notifications")
+        .where("senderEmail", "in", [this.currentUser.email, rakip.email])
+        .get()
+        .then(notifications => {
+          notifications.forEach(notification => {
+            db.collection("notifications")
+              .doc(notification.id)
+              .delete();
           });
-      })
-  },
-    oyuncuKadroDegistir(statusName) {
+        })
+        .then(() => {
+          db.collection("notifications")
+            .where("receiverEmail", "in", [this.currentUser.email, rakip.email])
+            .get()
+            .then(notifications => {
+              notifications.forEach(notification => {
+                db.collection("notifications")
+                  .doc(notification.id)
+                  .delete();
+              });
+            });
+        });
+    },
+    oyunBeklemeSuresiSil() {
+      db.collection("game_waits")
+        .where("oyunNo", "==", this.oyunNo)
+        .get()
+        .then(docs => {
+          docs.forEach(doc => {
+            db.collection("game_waits")
+              .doc(doc.id)
+              .delete();
+          });
+        });
+    },
+    oyuncuKadroDegistir(status) {
       db.collection("game_rooms")
         .doc(this.oyunNo)
         .update({
-          oyuncuKadroTamamMi: statusName
+          oyuncuKadroTamamMi: status
+        });
+    },
+    oyuncuDurumNoDegistir(no) {
+      db.collection("game_rooms")
+        .doc(this.oyunNo)
+        .update({
+          oyunDurumNo: no
         });
     },
     oyunSil() {
@@ -359,8 +405,10 @@ export default {
           });
         });
       this.kazananOyuncuSifirla();
+      this.oyuncuDurumNoDegistir(0);
       this.isOpenAlert = false;
       this.oyunBittiMi = false;
+      this.oyunDurumNo = null;
       this.hamleler = [];
     },
     whichPlayerStart() {
@@ -381,10 +429,6 @@ export default {
         .then(() => {
           this.hamleSırasiGetir();
         });
-    },
-    oyuncuHamleSes() {
-      var snd = new Audio("../src/assets/sound/hamle.mp3");
-      snd.play();
     },
     hamle(event) {
       this.hamleSoundEfeck();
@@ -661,15 +705,10 @@ export default {
       }
     },
     kazananOyuncuEkle(oyuncu) {
-      var ref = db.collection("game_rooms").doc(this.oyunNo);
-      ref
+      db.collection("game_rooms")
+        .doc(this.oyunNo)
         .update({
           kazananOyuncu: oyuncu
-        })
-        .then(() => {
-          if (oyuncu) {
-            this.skorArtir();
-          }
         });
     },
     kazananOyuncuSifirla() {
@@ -679,7 +718,6 @@ export default {
           .update({
             kazananOyuncu: null
           });
-        this.modalName = null;
       }
     },
     kazananOyuncuGetir() {
@@ -689,34 +727,20 @@ export default {
           if (
             (change.type == "modified" || change.type == "added") &&
             change.doc.id == this.oyunNo &&
-            change.doc.data().kazananOyuncu
+            change.doc.data().kazananOyuncu &&
+            change.doc.data().oyunDurumNo === 5
           ) {
-            if (!this.modalName) {
+            this.kazananOyuncu = change.doc.data().kazananOyuncu;
+            if (change.doc.data().oyuncuKadroTamamMi) {
               this.WinnerSoundEfeck();
-            }
-            if (this.oyunDurumKodNo === null) {
-              this.kazananOyuncu = change.doc.data().kazananOyuncu;
-              this.oyunDurumKodNo = 3;
-              this.modalName = "GameOverModal";
-            }
-          } else if (
-            (change.type == "modified" || change.type == "added") &&
-            change.doc.id == this.oyunNo &&
-            change.doc.data().kazananOyuncu == false
-          ) {
-            console.log("beraberlik");
-            if (this.oyunDurumKodNo === null) {
-              this.kazananOyuncu = change.doc.data().kazananOyuncu;
-              this.oyunDurumKodNo = 4;
-              this.modalName = "GameOverModal";
             }
           }
         });
       });
     },
-    skorArtir() {
+    skorArtir(oyuncuEmail) {
       db.collection("scores")
-        .where("email", "==", this.currentUser.email)
+        .where("email", "==", oyuncuEmail)
         .get()
         .then(querySnapshot => {
           querySnapshot.forEach(doc => {
@@ -800,7 +824,9 @@ export default {
     },
     oyunTamamlandi() {
       this.oyunBittiMi = true;
+      this.oyuncuDurumNoDegistir(5);
       this.kazananOyuncuEkle(this.currentUser.email);
+      this.skorArtir(this.currentUser.email);
     },
 
     oyunuKazandiMi(satir, sutun) {
@@ -822,7 +848,9 @@ export default {
       console.log(this.hamleler.length);
       console.log(this.kazananOyuncu);
       if (this.kazananOyuncu == null && this.hamleler.length == 48) {
-        this.kazananOyuncuEkle(this.currentUser.email);
+        this.kazananOyuncuEkle(false);
+        this.oyunBittiMi = true;
+        this.oyuncuDurumNoDegistir(6);
       }
     }
   }
