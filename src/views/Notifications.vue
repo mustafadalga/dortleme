@@ -187,7 +187,7 @@ export default {
         timestamp: Date.now()
       });
       this.acceptedRequests.push(user);
-      this.deleteRequest(user.requestCode);
+    //  this.deleteRequest(user.requestCode);
     },
     istekReddet(user) {
       db.collection("notifications").add({
@@ -200,7 +200,7 @@ export default {
         timestamp: Date.now()
       });
       this.rejectedRequests.push(user);
-      this.deleteRequest(user.requestCode);
+  //    this.deleteRequest(user.requestCode);
     },
     deleteRequest(requestCode) {
       db.collection("notifications")
@@ -218,7 +218,7 @@ export default {
     getNotifications() {
       db.collection("notifications").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
-          if (change.type == "added") {
+          if (change.type === "added") {
             let doc = change.doc.data();
             if (this.currentUser.email == doc.receiverEmail) {
               this.notifications.push({
@@ -229,6 +229,13 @@ export default {
                 statusCode: doc.statusCode,
                 requestCode: doc.requestCode,
                 timestamp: doc.timestamp
+              });
+            }
+          } else if (change.type === "removed") {
+            let doc = change.doc.data();
+            if (this.currentUser.email == doc.receiverEmail) {
+              this.notifications = this.notifications.filter(notification => {
+                return notification.receiverEmail !== doc.receiverEmail;
               });
             }
           }
@@ -251,7 +258,7 @@ export default {
               oyuncular.includes(user.senderEmail)
             ) {
               this.oyunSessionTanimla(opponent, room.oyunNo);
-              return true;
+              //  return true;
             }
           });
         })
@@ -259,10 +266,10 @@ export default {
           if (this.oyunTanimliMi()) {
             this.oyuncuKadroTamamla();
             this.bildirimSil();
-            //   this.oyunaYonlendir();
           } else {
             this.oyunOdasiOlustur(opponent);
             this.oyunSessionTanimla(opponent, this.oyunNo);
+            this.rakipOyuncuBeklemeSuresiOlustur();
             this.oyunaYonlendir();
           }
         });
@@ -317,6 +324,19 @@ export default {
     oyunaYonlendir() {
       this.$router.push({ name: "Game" });
     },
+    rakipOyuncuBeklemeSuresiOlustur() {
+      let rakip = this.$session.get("rakipOyuncu");
+      let simdikiZaman = new Date();
+      let beklemeSuresi = 60 * 1000;
+      let bitisTarih = new Date(simdikiZaman.getTime() + beklemeSuresi);
+      db.collection("game_waits").add({
+        oyunNo: this.oyunNo,
+        expectedPlayer: rakip.email,
+        waitingPlayer: this.currentUser.email,
+        simdikiZaman: simdikiZaman,
+        bitisTarih: bitisTarih
+      });
+    },
     oyunOdasiOlustur(opponent) {
       this.oyunNo = Date.now().toString();
       let currentEmail = this.currentUser.email;
@@ -329,7 +349,8 @@ export default {
             oyunuBaslatanEmail: currentEmail,
             hamleSirasi: currentEmail,
             kazananOyuncu: null,
-            oyuncuKadroTamamMi: false
+            oyuncuKadroTamamMi: false,
+            oyunDurumNo: 0
           });
         } else {
           this.oyunOdasiOlustur(opponent);
