@@ -16,7 +16,7 @@
           <label for="password">Password:</label>
           <input type="password" name="password" v-model="password" />
         </div>
-        <p class="red-text center" v-if="feedback">{{ feedback }}</p>
+        <p class="deep-purple-text center" v-if="feedback">{{ feedback }}</p>
         <div class="field center">
           <button class="btn deep-purple">Signup</button>
         </div>
@@ -48,35 +48,47 @@ export default {
         let ref = db.collection("users").doc(this.email);
         ref.get().then(doc => {
           if (doc.exists) {
-            this.feedback = "This is already exists";
+            this.feedback = "Girdiğiniz email adresi kullanılıyor.";
           } else {
-            firebase
-              .auth()
-              .createUserWithEmailAndPassword(this.email, this.password)
-              .then(user => {
-                ref.set({
-                  username: this.username,
-                  user_id: user.user.uid
-                });
-                this.createUserScoreSystem();
-              })
-              .then(() => {
-                this.$router.push({ name: "Login" });
-              })
-              .catch(error => {
-                this.feedback = error.message;
+            db.collection("users")
+              .where("username", "==", this.username)
+              .get()
+              .then(doc => {
+                if (doc.size > 0) {
+                  this.feedback = "Girdiğiniz kullanıcı adı kullanılıyor.";
+                } else {
+                  firebase
+                    .auth()
+                    .createUserWithEmailAndPassword(this.email, this.password)
+                    .then(user => {
+                      ref.set({
+                        username: this.username,
+                        user_id: user.user.uid
+                      });
+                      this.createUserScoreSystem();
+                     
+                    })
+                    .then(() => {
+                       this.feedback="Başarıyla kayıt oldunuz.Giriş sayfasına yönlendiriliyorsunuz."
+                       setTimeout(() => {
+                      this.$router.push({ name: "Login" });   
+                       }, 3000);
+                    })
+                    .catch(error => {
+                      this.feedback = error.message;
+                    });
+                }
               });
-            //  this.feedback='This alias is free to use'
           }
         });
-        this.feedback = null;
       } else {
-        this.feedback = "You must enter all fields";
+        this.feedback = "Lütfen tüm alanları giriniz";
       }
     },
     createUserScoreSystem() {
       db.collection("scores").add({
         email: this.email,
+        username: this.username,
         score: 0
       });
     }
