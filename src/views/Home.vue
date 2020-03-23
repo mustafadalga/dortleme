@@ -123,15 +123,14 @@ export default {
         .then(doc => {
           if (doc.docs.length > 0) {
             this.istekGonderildiMi = { username: user.username, status: true };
-            return true;
+
+
           } else {
-            let requestCode = Date.now();
             db.collection("notifications").add({
               sender: this.currentUser.username,
               senderEmail: this.currentUser.email,
               receiver: user.username,
               receiverEmail: user.email,
-              requestCode: requestCode,
               statusCode: 0,
               seenStatus: false
             });

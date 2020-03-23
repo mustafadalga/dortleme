@@ -6,7 +6,7 @@
         <li class="collection-item row font-bold">
           <div class="collection-number col s2 m1">Sıralama</div>
           <div class="collection-username col s7 m4 offset-m1">
-            <span>Kullanıcı Adı</span>
+            <span>Kullanıcı</span>
           </div>
           <div class="collection-rating col s3 m1 offset-m1">Puan</div>
         </li>
