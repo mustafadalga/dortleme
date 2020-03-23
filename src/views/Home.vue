@@ -8,6 +8,7 @@
         </a>
 
         <a class="waves-effect waves-light btn-large" @click="game_rooms">game_rooms</a>
+        <a class="waves-effect waves-light btn-large" @click="game_waits">game_Waits</a>
         <a class="waves-effect waves-light btn-large" @click="resetnotification">notificationCount</a>
         <a class="waves-effect waves-light btn-large" @click="requesetReset">
           <i class="material-icons left">all_out</i>istek sifirla
@@ -15,7 +16,7 @@
 
         <h3 class="heading center">Aktif Kullanıcılar</h3>
         <div class="row center">
-          <div class="col s12 m6 offset-m3">
+          <div class="col s12 m8 offset-m2 xl6 offset-xl3">
             <div v-if="onlineUsers.length<1">
               <div class="msg msg-error z-depth-2">
                 <p>Online kullanıcı bulunmamaktadır.</p>
@@ -31,22 +32,35 @@
               </div>
             </div>
 
-            <ul class="collection" v-for="(user,index) in onlineUsers" :key="index">
-              <li class="collection-item collection-item-user" v-if="!user.is_play">
-                <div class="collection-user">
-                  <div class="online-status"></div>
-                  <span>{{ user.username}}</span>
+            <ul class="collection">
+              <li
+                class="collection-item"
+                v-for="(user,index) in onlineUsers"
+                :key="index"
+              >
+                <div v-if="!user.is_play" class=" collection-item-user">
+                  <div class="collection-user">
+                    <div class="online-status"></div>
+                    <span>{{ user.username}}</span>
+                  </div>
+                  <button
+                    :ref="user.username"
+                    class="btn btn-game-request indigo accent-2"
+                    @click="oyunIstekGonder(user)"
+                  >İstek Gönder</button>
+                  <span
+                    class="icon-game-request"
+                    :ref="user.username"
+                    @click="oyunIstekGonder(user)"
+                  >
+                    <img src="../assets/img/right-arrow.png" />
+                  </span>
                 </div>
-                <button
-                  :ref="user.username"
-                  class="btn btn-game-request indigo accent-2"
-                  @click="oyunIstekGonder(user)"
-                >İstek Gönder</button>
-              </li>
-              <li class="collection-item collection-item-user" v-if="user.is_play">
-                <div class="collection-user">
-                  <div class="offline-status"></div>
-                  <span>{{ user.username}}</span>
+                <div v-else>
+                  <div class="collection-user">
+                    <div class="offline-status"></div>
+                    <span>{{ user.username}}</span>
+                  </div>
                 </div>
               </li>
             </ul>
@@ -95,6 +109,7 @@ export default {
     this.addGameUsers();
     this.getOnlineUser();
   },
+
   methods: {
     oyunIstekGonder(user) {
       window.clearTimeout(this.timeoutHandle);
@@ -107,7 +122,7 @@ export default {
         .get()
         .then(doc => {
           if (doc.docs.length > 0) {
-            this.istekGonderildiMi = { username: user.username, status: false };
+            this.istekGonderildiMi = { username: user.username, status: true };
             return true;
           } else {
             let requestCode = Date.now();
@@ -120,15 +135,15 @@ export default {
               statusCode: 0,
               seenStatus: false
             });
-            this.istekGonderildiMi = { username: user.username, status: true };
+            this.istekGonderildiMi = { username: user.username, status: false };
           }
         })
         .then(() => {
           this.msgContainerHeight = "height:auto";
           if (this.istekGonderildiMi.status) {
-            this.msgTypeCSS = "msg-info";
-          } else {
             this.msgTypeCSS = "msg-error";
+          } else {
+            this.msgTypeCSS = "msg-info";
           }
           this.scaleCSS = "scale-in";
           this.timeoutHandle = window.setTimeout(() => {
@@ -157,6 +172,7 @@ export default {
         }
       });
     },
+
     getOnlineUser() {
       db.collection("game_users").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
@@ -167,6 +183,7 @@ export default {
             email: doc.id,
             is_play: doc.data().is_play
           };
+
           if (change.type === "added") {
             if (doc.data().user_id != this.currentUser.id) {
               let userIndex = this.onlineUsers.findIndex(
@@ -217,10 +234,19 @@ export default {
           doc.ref.delete();
         });
       });
+    },
+    game_waits() {
+      var jobskill_query = db.collection("game_waits");
+      jobskill_query.get().then(function(querySnapshot) {
+        querySnapshot.forEach(function(doc) {
+          doc.ref.delete();
+        });
+      });
     }
   }
 };
 </script>
+
 <style lang="css" scoped>
 .home {
   margin-top: 60px;
@@ -254,13 +280,31 @@ export default {
 .btn-game-request {
   font-size: 0.5em;
 }
+.icon-game-request {
+  display: none;
+  cursor: pointer;
+}
+.icon-game-request img {
+  width: 32px;
+  height: 32px;
+}
 .collection-item-user {
-  justify-content: space-between;
+  display: flex;
+  justify-content: space-between; 
+  width:100%;
 }
 .collection-user {
   display: flex;
   align-items: center;
 }
+.collection-user .user-score {
+  font-size: 15px;
+  margin-left: 1em;
+  border-radius: 50%;
+  padding: 6px 3px;
+  font-weight: bold;
+}
+
 .msg {
   width: 100%;
   border: 1px solid;
@@ -284,7 +328,13 @@ export default {
 }
 @media (max-width: 500px) {
   .btn-game-request {
-    padding: 0 8px;
+    display: none;
+  }
+  .icon-game-request {
+    display: block;
+  }
+  .collection-user {
+    font-size: 0.75em;
   }
 }
 </style>
