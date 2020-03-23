@@ -12,7 +12,7 @@
           <label for="password">Password:</label>
           <input type="password" name="password" v-model="password" />
         </div>
-        <p class="red-text center" v-if="feedback">{{feedback}}</p>
+        <p class="deep-purple-text center" v-if="feedback">{{feedback}}</p>
         <div class="field center">
           <button class="btn deep-purple">Login</button>
         </div>
@@ -38,6 +38,7 @@ export default {
       feedback: null
     };
   },
+  
   methods: {
     login() {
       if (this.email && this.password) {
@@ -49,10 +50,14 @@ export default {
               this.getCurrentUser();
           })
           .catch(error => {
-            this.feedback = error.message;
+            if(error.code==="auth/wrong-password"){
+              this.feedback="Email adresi veya parola hatalı"
+            }else{
+  this.feedback = error;
+            }
           });
       } else {
-        this.feedback = "Please fill in both fields";
+        this.feedback = "Lütfen tüm alanları doldurunuz!";
       }
     },
     getCurrentUser() {
