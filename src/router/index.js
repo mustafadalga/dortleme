@@ -5,6 +5,7 @@ import Game from '../views/Game.vue'
 import Login from '../views/auth/Login.vue'
 import Signup from '../views/auth/Signup.vue'
 import Notifications from '../views/Notifications.vue'
+import Ratings from '../views/Ratings.vue'
 import db from '@/firebase/init'
 
 Vue.use(VueRouter)
@@ -41,8 +42,15 @@ const routes = [{
         meta: {
             requiresAuth: true
         }
-    }
-
+    },
+    {
+        path: '/ratings',
+        name: 'Ratings',
+        component: Ratings,
+        meta: {
+            requiresAuth: true
+        }
+    },
 ]
 
 const router = new VueRouter({
