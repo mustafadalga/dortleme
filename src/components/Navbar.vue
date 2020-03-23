@@ -3,7 +3,7 @@
     <div class="container">
       <router-link :to="{name:'Home'}" class="brand-logo left">
         <font-awesome-icon :icon="['fas', 'home']" />
-        <span style="margin-left:8px">Connection 4</span>
+        <span class="brand-text">Connection 4</span>
       </router-link>
       <ul class="right">
         <li v-if="!currentUser">
@@ -17,9 +17,18 @@
           </router-link>
         </li>
         <li v-if="currentUser && this.$route.name=='Game'">
-          <a @click="oyundanCik">
+          <a @click="oyunCikis">
             <font-awesome-icon :icon="['fas', 'times-circle']" class="font-awesome-size" />
           </a>
+        </li>
+        <li v-if="currentUser" class="rating-logo">
+          <router-link
+            :to="{name:'Ratings'}"
+            style="position:relative;"
+            @click.native="bildirimSifirla"
+          >
+            <img src="../assets/img/rating.png" />
+          </router-link>
         </li>
         <li v-if="currentUser">
           <router-link
@@ -75,13 +84,18 @@ export default {
   name: "Navbar",
   data() {
     return {
-      isAnimateAdded: false
+      isAnimateAdded: false,
+      oyunNo: null
     };
   },
   created() {
     this.currentUser = this.$session.get("user");
 
     if (this.currentUser) {
+      if (this.$session.exists("oyunNo")) {
+        this.oyunNo = this.$session.get("oyunNo");
+      }
+
       if (this.$route.name === "Notifications") {
         this.updateNotificationsSeenStatus();
       } else {
@@ -90,10 +104,46 @@ export default {
           this.bildirimSifirlamaDurumDegistir();
         }
         this.getNotifications();
+        this.deleteRejectedRequest()
       }
     }
   },
   methods: {
+    bildirimSifirla() {
+      console.log("bildirim sıfırlandı");
+
+      this.$session.set("notificationCount", 0);
+      this.notificationCount = this.$session.get("notificationCount");
+      console.log(this.notificationCount);
+    },
+    bildirimSifirlamaDurumDegistir() {
+      this.$session.set("isNotificationReset", false);
+      this.notificationIdList = [];
+      this.bildirimSifirla();
+    },
+    addNotification(id) {
+      let notificationIndex = this.notificationIdList.findIndex(
+        notificationId => {
+          return notificationId === id;
+        }
+      );
+      if (notificationIndex === -1) {
+        console.log("Eklendi");
+        this.notificationIdList.push(id);
+      } else {
+        console.log("eklendmedi:" + id);
+      }
+      this.$session.set("notificationCount", this.notificationIdList.length);
+      this.notificationCount = this.$session.get("notificationCount");
+      console.log(this.notificationIdList);
+      console.log(this.notificationCount);
+    },
+    createNotificationAnimation() {
+      this.isAnimateAdded = true;
+      window.setTimeout(() => {
+        this.isAnimateAdded = false;
+      }, 2500);
+    },
     updateNotificationsSeenStatus() {
       db.collection("notifications")
         .where("receiverEmail", "==", this.currentUser.email)
@@ -113,50 +163,33 @@ export default {
           console.log(this.$session.get("notificationCount"));
           this.getNotifications();
           console.log(this.$session.get("notificationCount"));
-          console.log("selam");
         });
     },
-    bildirimSifirla() {
-      this.$session.set("notificationCount", 0);
-      this.notificationCount = this.$session.get("notificationCount");
+    deleteRejectedRequest() {
+      db.collection("notifications")
+        .where("receiverEmail", "==", this.currentUser.email)
+        .where("seenStatus", "==",true)
+        .where("statusCode", "==", 2)
+        .get()
+        .then(snapshot => {
+          snapshot.forEach(doc => {
+            db.collection("notifications")
+              .doc(doc.id)
+              .delete();
+          });
+        });
     },
-    bildirimSifirlamaDurumDegistir() {
-      this.$session.set("isNotificationReset", false);
-      this.notificationIdList = [];
-      this.bildirimSifirla();
-    },
-    addNotification(id) {
-      let notificationIndex = this.notificationIdList.findIndex(
-        notificationId => {
-          return notificationId == id;
-        }
-      );
-      if (notificationIndex === -1) {
-        console.log("Eklendi");
-        this.notificationIdList.push(id);
-        this.$session.set("notificationCount", this.notificationIdList.length);
-        this.notificationCount = this.$session.get("notificationCount");
-        console.log(this.notificationIdList);
-        console.log(this.notificationCount);
-      }
-    },
-    createNotificationAnimation() {
-      this.isAnimateAdded = true;
-      window.setTimeout(() => {
-        this.isAnimateAdded = false;
-      }, 2500);
-    },
-
     getNotifications() {
       db.collection("notifications").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
+          let doc = change.doc;
           if (change.type == "added") {
-            let doc = change.doc;
             let receiverEmail = doc.data().receiverEmail;
             let seenStatus = doc.data().seenStatus;
-            if (this.currentUser.email == receiverEmail && !seenStatus) {
+            if (this.currentUser.email === receiverEmail && !seenStatus) {
               this.addNotification(doc.id);
               this.createNotificationAnimation();
+              console.log("bildirim geldi");
             }
           }
         });
@@ -167,57 +200,28 @@ export default {
         .auth()
         .signOut()
         .then(() => {
-          this.aktifOyunKullaniciSil();
+          this.onlineKullaniciSil();
           this.sessionSifirla();
           this.$router.push({ name: "Login" });
         });
     },
-    oyundanCik() {
-      this.kullaniciOyunDurumDegistir();
-      this.oyunSessionSil();
-      this.$router.push({ name: "Home" });
+    oyunCikis() {
+      this.$emit("openExitGameConfirmModal");
     },
-    oyunSessionSil() {
-      this.$session.remove("rakipOyuncu");
-      this.$session.remove("oyunNo");
+    onlineKullaniciSil() {
+      db.collection("game_users")
+        .doc(this.currentUser.email)
+        .delete();
     },
     sessionSifirla() {
-      this.$session.remove("rakipOyuncu");
-      this.$session.remove("oyunNo");
-      this.$session.remove("user");
-      this.$session.remove("notificationCount");
-      this.$session.remove("isNotificationReset");
-    },
-    aktifOyunKullaniciSil() {
-      let ref = db.collection("game_users");
-       ref.doc(this.currentUser.email).delete();
-      /*
-      if (this.$session.exists("rakipOyuncu")) {
-        let rakipOyuncu = this.$session.get("rakipOyuncu");
-        ref.doc(rakipOyuncu.email).update({
-          is_play: false
-        });
-      }
-*/
-    },
-    kullaniciOyunDurumDegistir() {
-     // let rakipOyuncu = this.$session.get("rakipOyuncu");
-      let ref = db.collection("game_users");
-      ref.doc(this.currentUser.email).update({
-        is_play: false
-      });
-      /*
-      ref.doc(rakipOyuncu.email).update({
-        is_play: false
-      });
-      */
+      this.$session.clear();
     }
   }
 };
 </script>
 <style >
-@import "../../src/assets/css/animate.css";
-@import "../../src/assets/css/materialize.min.css";
+@import "../assets/css/animate.css";
+@import "../assets/css/materialize.min.css";
 .brand-logo {
   display: flex !important;
   align-items: center;
@@ -243,6 +247,33 @@ export default {
   height: 22px;
   border-radius: 50%;
   background: red;
+}
+.brand-text {
+  margin-left: 8px;
+}
+.rating-logo,
+.rating-logo a {
+  max-height: 64px;
+}
+.rating-logo img {
+  margin-top: 20px;
+}
+@media (max-width: 600px) {
+  .brand-text {
+    font-size: 0.7em;
+  }
+  .rating-logo,
+  .rating-logo a {
+    max-height: 56px;
+  }
+  .rating-logo img {
+    margin-top: 16px;
+  }
+}
+@media (max-width: 320px) {
+  .brand-text {
+    font-size: 0.5em;
+  }
 }
 </style>
 
