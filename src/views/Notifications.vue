@@ -49,17 +49,22 @@
                   :icon="['fas', 'user-plus']"
                   class="deep-purple-text text-darken-1 notification-icon"
                 />
-                <p class="notification-text">
-                  {{ notification.sender }} kullanıcısından bir oyun isteği geldi.
-                  <button
-                    @click="istekKabulEt(notification)"
-                    class="button-confirm deep-purple white-text"
-                  >Kabul Et</button>
-                  <button
-                    @click="istekReddet(notification)"
-                    class="button-confirm red white-text"
-                  >Reddet</button>
-                </p>
+                <div>
+                  <p
+                    class="notification-text"
+                  >{{ notification.sender }} kullanıcısından bir oyun isteği geldi.</p>
+
+                  <p>
+                    <button
+                      @click="istekKabulEt(notification)"
+                      class="button-confirm deep-purple white-text"
+                    >Kabul Et</button>
+                    <button
+                      @click="istekReddet(notification)"
+                      class="button-confirm red white-text"
+                    >Reddet</button>
+                  </p>
+                </div>
               </div>
               <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
@@ -187,7 +192,6 @@ export default {
         timestamp: Date.now()
       });
       this.acceptedRequests.push(user);
-    //  this.deleteRequest(user.requestCode);
     },
     istekReddet(user) {
       db.collection("notifications").add({
@@ -200,45 +204,24 @@ export default {
         timestamp: Date.now()
       });
       this.rejectedRequests.push(user);
-  //    this.deleteRequest(user.requestCode);
     },
-    deleteRequest(requestCode) {
-      db.collection("notifications")
-        .get()
-        .then(snapshot => {
-          snapshot.forEach(doc => {
-            if (doc.data().requestCode === requestCode) {
-              db.collection("notifications")
-                .doc(doc.id)
-                .delete();
-            }
-          });
-        });
-    },
+
     getNotifications() {
       db.collection("notifications").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (change.type === "added") {
             let doc = change.doc.data();
-            if (this.currentUser.email == doc.receiverEmail) {
+            if (this.currentUser.email === doc.receiverEmail) {
               this.notifications.push({
                 sender: doc.sender,
                 senderEmail: doc.senderEmail,
                 receiver: doc.receiver,
                 receiverEmail: doc.receiverEmail,
                 statusCode: doc.statusCode,
-                requestCode: doc.requestCode,
                 timestamp: doc.timestamp
               });
             }
-          } else if (change.type === "removed") {
-            let doc = change.doc.data();
-            if (this.currentUser.email == doc.receiverEmail) {
-              this.notifications = this.notifications.filter(notification => {
-                return notification.receiverEmail !== doc.receiverEmail;
-              });
-            }
-          }
+          } 
         });
       });
     },
@@ -258,7 +241,6 @@ export default {
               oyuncular.includes(user.senderEmail)
             ) {
               this.oyunSessionTanimla(opponent, room.oyunNo);
-              //  return true;
             }
           });
         })
@@ -277,7 +259,8 @@ export default {
     bildirimSil() {
       let rakip = this.$session.get("rakipOyuncu");
       db.collection("notifications")
-        .where("senderEmail", "in", [this.currentUser.email, rakip.email])
+        .where("receiverEmail", "==", this.currentUser.email)
+        .where("senderEmail", "==", rakip.email)
         .get()
         .then(notifications => {
           notifications.forEach(notification => {
@@ -288,7 +271,8 @@ export default {
         })
         .then(() => {
           db.collection("notifications")
-            .where("receiverEmail", "in", [this.currentUser.email, rakip.email])
+            .where("receiverEmail", "==", rakip.email)
+            .where("senderEmail", "==", this.currentUser.email)
             .get()
             .then(notifications => {
               notifications.forEach(notification => {
