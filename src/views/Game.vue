@@ -2,31 +2,27 @@
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
     <button @click="dbreset">Sıfırla</button>
+    {{ moveCountDown}}
     <div class="container center">
       <div class="row">
-        <div class="col s3">
-          <p
+        <div class="col s6 m3">
+          <div
             class="z-depth-1 white-text bg-red card-red-team"
             :class="hamleSirasi==baslayanOyuncu ? 'aktif-takim-border' : ''"
           >
+            <font-awesome-icon :icon="['fas', 'user']" />
             <span
               class="player-name"
             >{{ baslayanOyuncu==currentUser.email ? currentUser.username : rakip.username }}</span>
-            <font-awesome-icon :icon="['fas', 'user']" />
+
             <span
               class="btn-floating waves-effect waves-light skor skor-bg-red"
             >{{ baslayanOyuncu==currentUser.email ? currentUserSkor : rakipSkor }}</span>
-          </p>
-        </div>
-
-        <div class="col s4 offset-s1">
-          <div class="msg z-depth-2 deep-purple darken-1 white-text">
-            <span>Hamle yapacak oyuncu:{{ hamleSirasi==currentUser.email ? currentUser.username : rakip.username }}</span>
           </div>
         </div>
 
-        <div class="col s3 offset-s1">
-          <p
+        <div class="col s6 m3 offset-m6">
+          <div
             class="z-depth-1 white-text bg-green card-green-team"
             :class="hamleSirasi!=baslayanOyuncu ? 'aktif-takim-border' : ''"
           >
@@ -34,10 +30,11 @@
             <span
               class="player-name"
             >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
+
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
             >{{ baslayanOyuncu==currentUser.email ? rakipSkor: currentUserSkor }}</span>
-          </p>
+          </div>
         </div>
       </div>
     </div>
@@ -64,13 +61,26 @@
     </div>
 
     <div class="alert-bottom-container">
-      <div class="alert-bottom scale-transition" :class="scaleCSS">
-        <div class="msg z-depth-2" :class="msgTypeCSS" v-if="!isOpenAlert">
-          <span v-if="!beklemeSuresiDolduMu">Rakip oyuncu bekleniliyor...</span>
-          <span>{{ countDown>0 ? ("00:"+(countDown>9 ? countDown : "0"+countDown)) : countDown==null ? "": "Süre Doldu!" }}</span>
+      <div class="alert-bottom scale-transition" :class="gameStartScaleCSS">
+        <div class="msg msg-info z-depth-2" v-if="isOpenGameStartCountDownAlert">
+          <span v-if="!oyunBeklemeSuresiDolduMu">Rakip oyuncu bekleniliyor...</span>
+          <span>{{ gameStartCountDown>0 ? ("00:"+(gameStartCountDown>9 ? gameStartCountDown : "0"+gameStartCountDown)) : gameStartCountDown==null ? "": "Süre Doldu!" }}</span>
         </div>
-        <div class="msg z-depth-2" :class="msgTypeCSS" v-else-if="isOpenAlert">
+        <div class="msg msg-info z-depth-2" v-else>
           <span>Rakip oyuncu oyuna dahil oldu.Oyun başladı</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-bottom-container">
+      <div class="alert-bottom scale-transition" :class="moveScaleCSS">
+        <div class="msg msg-info z-depth-2" v-if="isOpenMoveCountDownAlert">
+          <span
+            v-if="!hamleBeklemeSuresiDolduMu"
+          >{{ moveCountDown>0 ? "Hamle yapmak için kalan süre:"+("00:"+(moveCountDown>9 ? moveCountDown : "0"+moveCountDown)) : "Süre Doldu!" }}</span>
+          <span
+            v-else
+          >Hamle sırası gelen oyuncu:{{ hamleSirasi==currentUser.email ? currentUser.username : rakip.username }}</span>
         </div>
       </div>
     </div>
@@ -128,23 +138,26 @@ export default {
       col: null,
       renk: null,
       rakip: null,
-      user: null,
       oyunNo: null,
-      scaleCSS: "scale-in",
-      msgTypeCSS: "msg-error",
+      gameStartScaleCSS: "scale-out",
+      moveScaleCSS: "scale-out",
       baslayanOyuncu: null,
       hamleSirasi: null,
       kazananOyuncu: null,
       rakipSkor: null,
       currentUserSkor: null,
-      isOpenAlert: false,
+      isOpenGameStartCountDownAlert: true,
+      isOpenMoveCountDownAlert: false,
       oyuncuKadroTamamMi: false,
       modalName: null,
       oyunBittiMi: false,
-      timeoutHandle: null,
-      countDown: null,
+      timeoutHandleGameStart: null,
+      timeoutHandleMove: null,
+      gameStartCountDown: null,
+      moveCountDown: null,
       oyunDurumNo: null,
-      beklemeSuresiDolduMu: false
+      oyunBeklemeSuresiDolduMu: false,
+      hamleBeklemeSuresiDolduMu: false
     };
   },
   created() {
@@ -155,10 +168,10 @@ export default {
     this.rakip = this.$session.get("rakipOyuncu");
     this.hamlelerListele();
     this.kazananOyuncuGetir();
-    this.kazananOyuncuSifirla();
     this.skorGetir();
     this.oyuncuKadroTamamlandiMi();
     this.rakipOyuncuBeklemeSuresiGoster();
+    this.hamleBeklemeSuresiGoster();
   },
   methods: {
     updatePlayersPlayingStatus(status) {
@@ -175,8 +188,153 @@ export default {
       var snd = new Audio(WinnerSoundFile);
       snd.play();
     },
+
+    hamleBeklemeSuresiOlustur() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_waits")
+          .where("oyunNo", "==", this.oyunNo)
+          .where("hamleYapanOyuncu", "in", [
+            this.currentUser.email,
+            this.rakip.email
+          ])
+          .get()
+          .then(querySnapshot => {
+            if (querySnapshot.size === 0) {
+              this.hamleBeklemeSuresiDolduMu = false;
+              let simdikiZaman = new Date();
+              let beklemeSuresi = 60 * 1000;
+              let bitisTarih = new Date(simdikiZaman.getTime() + beklemeSuresi);
+              db.collection("game_waits")
+                .add({
+                  oyunNo: this.oyunNo,
+                  hamleYapanOyuncu: this.currentUser.email,
+                  simdikiZaman: simdikiZaman,
+                  bitisTarih: bitisTarih
+                })
+                .then(() => {
+                  console.log(this.hamleBeklemeSuresiDolduMu);
+                  resolve(true);
+                })
+                .catch(() => reject(false));
+            }
+          });
+      });
+    },
+    hamleBeklemeSuresiGuncelle(moveCountDownId) {
+      return new Promise((resolve, reject) => {
+        let ref = db.collection("game_waits");
+        ref
+          .doc(moveCountDownId)
+          .get()
+          .then(doc => {
+            if (doc.exists) {
+              ref
+                .doc(moveCountDownId)
+                .update({
+                  simdikiZaman: new Date()
+                })
+                .then(() => resolve(true))
+                .catch(() => reject(false));
+            }
+          });
+      });
+    },
+    hamleBeklemeSuresiGoster() {
+      window.clearTimeout(this.timeoutHandleMove);
+      let ref = db.collection("game_waits");
+      ref.onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (
+            (change.type == "modified" || change.type == "added") &&
+            change.doc.data().oyunNo == this.oyunNo &&
+            change.doc.data().hamleYapanOyuncu &&
+            !this.hamleBeklemeSuresiDolduMu
+          ) {
+            this.moveScaleCSS = "scale-in";
+            let simdikiZaman = change.doc.data().simdikiZaman.seconds;
+            let bitisTarih = change.doc.data().bitisTarih.seconds;
+            this.moveCountDown = bitisTarih - simdikiZaman;
+
+            if (this.moveCountDown >= 0) {
+              let moveCountDownId = change.doc.id;
+              if (
+                change.doc.data().hamleYapanOyuncu === this.currentUser.email &&
+                this.kazananOyuncu === null
+              ) {
+                this.timeoutHandleMove = setTimeout(() => {
+                  this.hamleBeklemeSuresiGuncelle(moveCountDownId).then(
+                    value => {
+                      console.log(value);
+                    }
+                  );
+                }, 1000);
+                this.moveCountDown <= 60
+                  ? (this.isOpenMoveCountDownAlert = true)
+                  : null;
+              }
+            } else {
+              window.clearTimeout(this.timeoutHandleMove);
+              if (!this.hamleBeklemeSuresiDolduMu) {
+                this.hamleBeklemeSuresiDolduMu = true;
+                this.hamleBeklemeSuresiSil();
+                this.takimDegistir();
+                if (this.hamleSirasi === this.currentUser.email) {
+                  this.hamleSirasiDegistir();
+                  setTimeout(() => {
+                    console.log("yeni oluşturuluyor 23");
+                    this.hamleBeklemeSuresiOlustur();
+                  }, 2000);
+                }
+                setTimeout(() => {
+                  (this.moveScaleCSS = "scale-out"),
+                    (this.isOpenMoveCountDownAlert = false);
+                  this.hamleBeklemeSuresiDolduMu = false;
+                }, 3000);
+              }
+            }
+          }
+        });
+      });
+    },
+    hamleBeklemeSuresiSil() {
+      db.collection("game_waits")
+        .where("oyunNo", "==", this.oyunNo)
+        .where("hamleYapanOyuncu", "in", [
+          this.currentUser.email,
+          this.rakip.email
+        ])
+        .get()
+        .then(docs => {
+          docs.forEach(doc => {
+            db.collection("game_waits")
+              .doc(doc.id)
+              .delete();
+            console.log("silindi");
+          });
+        });
+    },
+    hamleBeklemeSuresiYenidenBaslat() {
+      db.collection("game_waits")
+        .where("oyunNo", "==", this.oyunNo)
+        .where("hamleYapanOyuncu", "in", [
+          this.currentUser.email,
+          this.rakip.email
+        ])
+        .get()
+        .then(docs => {
+          docs.forEach(doc => {
+            db.collection("game_waits")
+              .doc(doc.id)
+              .delete();
+            console.log("silindi");
+          });
+        })
+        .then(() => {
+          this.hamleBeklemeSuresiOlustur();
+        });
+    },
     rakipOyuncuBeklemeSuresiGoster() {
-      window.clearTimeout(this.timeoutHandle);
+      window.clearTimeout(this.timeoutHandleGameStart);
       let ref = db.collection("game_waits");
       ref.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
@@ -188,18 +346,18 @@ export default {
               let simdikiZaman = change.doc.data().simdikiZaman.seconds;
               let bitisTarih = change.doc.data().bitisTarih.seconds;
               let kalanSure = bitisTarih - simdikiZaman;
-              if (kalanSure >= 0) {
-                this.countDown = kalanSure <= 45 ? kalanSure : null;
-                this.countDownTimerId = change.doc.id;
-                this.timeoutHandle = setTimeout(() => {
-                  console.log("devam ediliyor.");
+              if (kalanSure > 0) {
+                this.gameStartCountDown = kalanSure <= 45 ? kalanSure : null;
+                let gameStartCountDownTimerId = change.doc.id;
+                this.timeoutHandleGameStart = setTimeout(() => {
+                  console.log("devam ediliyor." + kalanSure);
                   db.collection("game_waits")
-                    .doc(this.countDownTimerId)
+                    .doc(gameStartCountDownTimerId)
                     .get()
                     .then(doc => {
                       if (doc.exists) {
                         db.collection("game_waits")
-                          .doc(this.countDownTimerId)
+                          .doc(gameStartCountDownTimerId)
                           .update({
                             simdikiZaman: new Date()
                           });
@@ -207,7 +365,8 @@ export default {
                     });
                 }, 1000);
               } else {
-                this.beklemeSuresiDolduMu = true;
+                this.oyunBeklemeSuresiDolduMu = true;
+                window.clearTimeout(this.timeoutHandleGameStart);
                 this.oyunBeklemeSuresiSil();
                 this.kazananOyuncuEkle(this.currentUser.email);
                 this.skorArtir(this.rakip.email);
@@ -220,6 +379,48 @@ export default {
         });
       });
     },
+    oyunBeklemeSuresiSil() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_waits")
+          .where("oyunNo", "==", this.oyunNo)
+          .where("waitingPlayer", "in", [
+            this.currentUser.email,
+            this.rakip.email
+          ])
+          .get()
+          .then(docs => {
+            docs.forEach(doc => {
+              db.collection("game_waits")
+                .doc(doc.id)
+                .delete();
+            });
+          })
+          .then(() => resolve("oyunBeklemeSuresiSilindi+"))
+          .catch(() => reject("oyunBeklemeSuresiSilinmedi-"));
+      });
+    },
+    hamleBeklemeSuresiVarmi() {
+      var durum = false;
+      db.collection("game_waits")
+        .where("oyunNo", "==", this.oyunNo)
+        .where("hamleYapanOyuncu", "in", [
+          this.currentUser.email,
+          this.rakip.email
+        ])
+        .get()
+        .then(querySnapshot => {
+          if (querySnapshot.size > 0) {
+            durum = true;
+          } else {
+            durum = false;
+          }
+        })
+        .then(() => {
+          if (!durum) {
+            this.hamleBeklemeSuresiOlustur();
+          }
+        });
+    },
     oyuncuKadroTamamlandiMi() {
       db.collection("game_rooms")
         .where("oyunNo", "==", this.oyunNo)
@@ -227,23 +428,43 @@ export default {
           snapshot.docChanges().forEach(change => {
             if (
               (change.type == "modified" || change.type == "added") &&
-              change.doc.data().oyuncuKadroTamamMi
+              change.doc.data().oyuncuKadroTamamMi &&
+              change.doc.data().kazananOyuncu === null
             ) {
-              if (this.oyuncuKadroTamamMi == false) {
-                this.isOpenAlert = true;
+              this.oyunDurumNo = 0;
+              window.clearTimeout(this.timeoutHandleGameStart);
+
+              if (!this.$session.get("oyunKadroTamamMi")) {
+                window.setTimeout(() => {
+                  this.gameStartScaleCSS = "scale-out";
+                }, 2000);
+              }
+
+              if (!this.oyuncuKadroTamamMi) {
+                this.isOpenGameStartCountDownAlert = false;
+                this.isOpenMoveCountDownAlert = true;
+
                 this.oyuncuKadroTamamMi = true;
+                this.$session.set("oyunKadroTamamMi", true);
                 this.oyunBeklemeSuresiSil();
-                this.oyunDurumNo = 0;
-                this.scaleCSS = "scale-out";
-
-                window.setTimeout(() => {
-                  this.msgTypeCSS = "msg-info";
-                  this.scaleCSS = "scale-in";
-                }, 1000);
-
-                window.setTimeout(() => {
-                  this.scaleCSS = "scale-out";
-                }, 3000);
+                if (
+                  change.doc.data().oyunuBaslatanEmail ===
+                  this.currentUser.email
+                ) {
+                  setTimeout(() => {
+                    console.log("yeni oyun başlatıldı");
+                    this.hamleBeklemeSuresiOlustur();
+                  }, 3000);
+                }
+              }
+            } else if (
+              (change.type === "added" || change.type === "modified") &&
+              change.doc.data().oyuncuKadroTamamMi === false &&
+              change.doc.data().oyunDurumNo === 0
+            ) {
+              if (this.oyunDurumNo !== 0) {
+                this.gameStartScaleCSS = "scale-in";
+                this.$session.set("oyunKadroTamamMi", false);
               }
             } else if (
               (change.type === "added" || change.type === "modified") &&
@@ -293,6 +514,7 @@ export default {
       this.updatePlayersPlayingStatus(false);
       if (this.oyunDurumNo == 1) {
         this.oyuncuKadroDegistir(false);
+        this.hamleBeklemeSuresiSil();
         this.oyuncuDurumNoDegistir(1);
         this.bildirimSil();
         this.kazananOyuncuEkle(this.rakip.email);
@@ -324,7 +546,8 @@ export default {
     bildirimSil() {
       let rakip = this.$session.get("rakipOyuncu");
       db.collection("notifications")
-        .where("senderEmail", "in", [this.currentUser.email, rakip.email])
+        .where("receiverEmail", "==", this.currentUser.email)
+        .where("senderEmail", "==", rakip.email)
         .get()
         .then(notifications => {
           notifications.forEach(notification => {
@@ -335,7 +558,8 @@ export default {
         })
         .then(() => {
           db.collection("notifications")
-            .where("receiverEmail", "in", [this.currentUser.email, rakip.email])
+            .where("receiverEmail", "==", rakip.email)
+            .where("senderEmail", "==", this.currentUser.email)
             .get()
             .then(notifications => {
               notifications.forEach(notification => {
@@ -344,20 +568,9 @@ export default {
                   .delete();
               });
             });
-        });
+        })
     },
-    oyunBeklemeSuresiSil() {
-      db.collection("game_waits")
-        .where("oyunNo", "==", this.oyunNo)
-        .get()
-        .then(docs => {
-          docs.forEach(doc => {
-            db.collection("game_waits")
-              .doc(doc.id)
-              .delete();
-          });
-        });
-    },
+
     oyuncuKadroDegistir(status) {
       db.collection("game_rooms")
         .doc(this.oyunNo)
@@ -380,6 +593,7 @@ export default {
     oyunSessionSil() {
       this.$session.remove("rakipOyuncu");
       this.$session.remove("oyunNo");
+      this.$session.remove("oyunKadroTamamMi");
     },
     oyunHamleSil() {
       db.collection("hamleler")
@@ -406,7 +620,12 @@ export default {
         });
       this.kazananOyuncuSifirla();
       this.oyuncuDurumNoDegistir(0);
-      this.isOpenAlert = false;
+      this.hamleBeklemeSuresiOlustur();
+    },
+    oyunVerileriSifirla() {
+      this.moveCountDown = null;
+      this.hamleBeklemeSuresiDolduMu = false;
+      this.isOpenMoveCountDownAlert = true;
       this.oyunBittiMi = false;
       this.oyunDurumNo = null;
       this.hamleler = [];
@@ -432,7 +651,8 @@ export default {
     },
     hamle(event) {
       this.hamleSoundEfeck();
-      const col = parseInt(event.toElement.attributes.col.value);
+      const col = parseInt(event.target.attributes.col.value);
+
       let enAltSatir = this.altSatirBul(col);
       if (enAltSatir) {
         this.row = enAltSatir;
@@ -442,6 +662,15 @@ export default {
         this.takimDegistir();
         this.hamleKaydet();
         this.hamleSirasiDegistir();
+
+        window.clearTimeout(this.timeoutHandleMove);
+        setTimeout(() => {
+          if (!this.hamleBeklemeSuresiDolduMu && this.kazananOyuncu === null) {
+            this.hamleBeklemeSuresiDolduMu = true;
+            console.log("oluşturuldu");
+            this.hamleBeklemeSuresiYenidenBaslat();
+          }
+        }, 2000);
       } else {
         this.notificationAlert("Uyarı", "Hamle yapmak istediğiniz satir dolu.");
       }
@@ -712,17 +941,31 @@ export default {
         });
     },
     kazananOyuncuSifirla() {
+      /*
       if (this.kazananOyuncu) {
         db.collection("game_rooms")
           .doc(this.oyunNo)
           .update({
-            kazananOyuncu: null
+            kazananOyuncu: null,
+            hamleSirasi: this.currentUser.email
           });
       }
+*/
+      return new Promise((resolve, reject) => {
+        if (this.kazananOyuncu) {
+          db.collection("game_rooms")
+            .doc(this.oyunNo)
+            .update({
+              kazananOyuncu: null,
+              hamleSirasi: this.currentUser.email
+            })
+            .then(() => resolve(true))
+            .catch(() => reject(false));
+        }
+      });
     },
     kazananOyuncuGetir() {
-      let ref = db.collection("game_rooms");
-      ref.onSnapshot(snapshot => {
+      db.collection("game_rooms").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
             (change.type == "modified" || change.type == "added") &&
@@ -731,9 +974,23 @@ export default {
             change.doc.data().oyunDurumNo === 5
           ) {
             this.kazananOyuncu = change.doc.data().kazananOyuncu;
+            console.log("kazanan oyuncu getir");
             if (change.doc.data().oyuncuKadroTamamMi) {
               this.WinnerSoundEfeck();
+              this.oyunBittiMi = true;
+              this.isOpenMoveCountDownAlert = false;
             }
+          } else if (
+            (change.type == "modified" || change.type == "added") &&
+            change.doc.id == this.oyunNo &&
+            change.doc.data().kazananOyuncu === null &&
+            change.doc.data().oyunDurumNo === 0 &&
+            this.oyunBittiMi
+          ) {
+            console.log("yeni oyun veri sıfırla");
+            console.log(change.doc.data().kazananOyuncu);
+            this.kazananOyuncu = null;
+            this.oyunVerileriSifirla();
           }
         });
       });
@@ -824,9 +1081,12 @@ export default {
     },
     oyunTamamlandi() {
       this.oyunBittiMi = true;
+      this.hamleBeklemeSuresiDolduMu = true;
+      this.isOpenMoveCountDownAlert = false;
       this.oyuncuDurumNoDegistir(5);
       this.kazananOyuncuEkle(this.currentUser.email);
       this.skorArtir(this.currentUser.email);
+      this.hamleBeklemeSuresiSil();
     },
 
     oyunuKazandiMi(satir, sutun) {
@@ -845,9 +1105,7 @@ export default {
         if (!this.oyunBittiMi) this.yatayKontrol(satir, sutun);
         if (!this.oyunBittiMi) this.caprazKontrol(satir, sutun);
       }
-      console.log(this.hamleler.length);
-      console.log(this.kazananOyuncu);
-      if (this.kazananOyuncu == null && this.hamleler.length == 48) {
+      if (this.kazananOyuncu === null && this.hamleler.length === 48) {
         this.kazananOyuncuEkle(false);
         this.oyunBittiMi = true;
         this.oyuncuDurumNoDegistir(6);
@@ -857,6 +1115,9 @@ export default {
 };
 </script>
 
-<style lang="css" scoped>
+
+<style >
+</style>
+<style lang="css" scoped >
 @import "../assets/css/dortleme.css";
 </style>
