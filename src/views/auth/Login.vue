@@ -3,18 +3,18 @@
     <Navbar />
     <div class="login container">
       <form @submit.prevent="login" class="card-panel">
-        <h2 class="center deep-purple-text">Login</h2>
+        <h2 class="center deep-purple-text">Giriş Yap</h2>
         <div class="field">
           <label for="email">Email:</label>
           <input type="email" name="email" v-model="email" />
         </div>
         <div class="field">
-          <label for="password">Password:</label>
-          <input type="password" name="password" v-model="password" />
+          <label for="password">Parola:</label>
+          <input type="password" name="password" v-model="password" autocomplete="off" />
         </div>
         <p class="deep-purple-text center" v-if="feedback">{{feedback}}</p>
         <div class="field center">
-          <button class="btn deep-purple">Login</button>
+          <button class="btn deep-purple">Giriş Yap</button>
         </div>
       </form>
     </div>
@@ -53,6 +53,7 @@ export default {
             if(error.code==="auth/wrong-password"){
               this.feedback="Email adresi veya parola hatalı"
             }else{
+              console.log(error)
   this.feedback = error;
             }
           });
