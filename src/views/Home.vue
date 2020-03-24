@@ -33,12 +33,8 @@
             </div>
 
             <ul class="collection">
-              <li
-                class="collection-item"
-                v-for="(user,index) in onlineUsers"
-                :key="index"
-              >
-                <div v-if="!user.is_play" class=" collection-item-user">
+              <li class="collection-item" v-for="(user,index) in onlineUsers" :key="index">
+                <div v-if="!user.is_play" class="collection-item-user">
                   <div class="collection-user">
                     <div class="online-status"></div>
                     <span>{{ user.username}}</span>
@@ -123,8 +119,6 @@ export default {
         .then(doc => {
           if (doc.docs.length > 0) {
             this.istekGonderildiMi = { username: user.username, status: true };
-
-
           } else {
             db.collection("notifications").add({
               sender: this.currentUser.username,
@@ -171,7 +165,21 @@ export default {
         }
       });
     },
-
+    getUserIndex(userId) {
+      return this.onlineUsers.findIndex(user => user.user_id === userId);
+    },
+    kullanicivarmi(userIndex) {
+      if (userIndex === -1) {
+        return false;
+      } else {
+        return true;
+      }
+    },
+    deleteUserFromOnlineUsers(userId) {
+      this.onlineUsers = this.onlineUsers.filter(user => {
+        return user.user_id !== userId;
+      });
+    },
     getOnlineUser() {
       db.collection("game_users").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
@@ -182,21 +190,23 @@ export default {
             email: doc.id,
             is_play: doc.data().is_play
           };
+          console.log(user.username)
 
           if (change.type === "added") {
-            if (doc.data().user_id != this.currentUser.id) {
-              let userIndex = this.onlineUsers.findIndex(
-                element => element.user_id == user.user_id
-              );
-              if (userIndex === -1) {
+            if (doc.data().user_id !== this.currentUser.id) {
+              let userIndex = this.getUserIndex(user.user_id);
+           
+              if (!this.kullanicivarmi(userIndex)) {
+                   console.log(userIndex) 
                 this.onlineUsers.push(user);
               }
             }
-          } else if (change.type == "modified") {
-            this.onlineUsers = this.onlineUsers.filter(element => {
-              return element.user_id != user.user_id;
-            });
-            this.onlineUsers.push(user);
+          } else if (change.type === "modified") {
+            this.deleteUserFromOnlineUsers(user.user_id)
+            let userIndex = this.getUserIndex(user.user_id);
+            if (!this.kullanicivarmi(userIndex)) {
+              this.onlineUsers.push(user);
+            }
           } else if (change.type === "removed") {
             this.onlineUsers = this.onlineUsers.filter(element => {
               return element.user_id != user.user_id;
@@ -289,8 +299,8 @@ export default {
 }
 .collection-item-user {
   display: flex;
-  justify-content: space-between; 
-  width:100%;
+  justify-content: space-between;
+  width: 100%;
 }
 .collection-user {
   display: flex;
