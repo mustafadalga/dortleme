@@ -1,11 +1,11 @@
 <template>
-  <div id="signup">
+  <div id="signUp">
     <Navbar />
-    <div class="signup container">
-      <form class="card-panel" @submit.prevent="SignUp">
-        <h2 class="center deep-purple-text">Signup</h2>
+    <div class="signUp container">
+      <form class="card-panel" @submit.prevent="signUp">
+        <h2 class="center deep-purple-text">Kayıt Ol</h2>
         <div class="field">
-          <label for="email">Username:</label>
+          <label for="email">Kullanıcı Adı:</label>
           <input type="text" name="username" v-model="username" />
         </div>
         <div class="field">
@@ -13,12 +13,16 @@
           <input type="email" name="email" v-model="email" />
         </div>
         <div class="field">
-          <label for="password">Password:</label>
-          <input type="password" name="password" v-model="password" />
+          <label for="password">Parola:</label>
+          <input type="password" name="password" v-model="password" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="password">Parola Onayla:</label>
+          <input type="password" name="password2" v-model="password2" autocomplete="off" />
         </div>
         <p class="deep-purple-text center" v-if="feedback">{{ feedback }}</p>
         <div class="field center">
-          <button class="btn deep-purple">Signup</button>
+          <button class="btn deep-purple">Kayıt Ol</button>
         </div>
       </form>
     </div>
@@ -30,7 +34,7 @@ import db from "@/firebase/init";
 import firebase from "firebase";
 import Navbar from "@/components/Navbar";
 export default {
-  name: "Signup",
+  name: "signUp",
   components: {
     Navbar
   },
@@ -38,49 +42,54 @@ export default {
     return {
       email: null,
       password: null,
+      password2: null,
       username: null,
       feedback: null
     };
   },
   methods: {
-    SignUp() {
-      if (this.username && this.email && this.password) {
-        let ref = db.collection("users").doc(this.email);
-        ref.get().then(doc => {
-          if (doc.exists) {
-            this.feedback = "Girdiğiniz email adresi kullanılıyor.";
-          } else {
-            db.collection("users")
-              .where("username", "==", this.username)
-              .get()
-              .then(doc => {
-                if (doc.size > 0) {
-                  this.feedback = "Girdiğiniz kullanıcı adı kullanılıyor.";
-                } else {
-                  firebase
-                    .auth()
-                    .createUserWithEmailAndPassword(this.email, this.password)
-                    .then(user => {
-                      ref.set({
-                        username: this.username,
-                        user_id: user.user.uid
+    signUp() {
+      if (this.allFieldFull()) {
+        if (this.password === this.password2) {
+          let ref = db.collection("users").doc(this.email);
+          ref.get().then(doc => {
+            if (doc.exists) {
+              this.feedback = "Girdiğiniz email adresi kullanılıyor.";
+            } else {
+              db.collection("users")
+                .where("username", "==", this.username)
+                .get()
+                .then(doc => {
+                  if (doc.size > 0) {
+                    this.feedback = "Girdiğiniz kullanıcı adı kullanılıyor.";
+                  } else {
+                    firebase
+                      .auth()
+                      .createUserWithEmailAndPassword(this.email, this.password)
+                      .then(user => {
+                        ref.set({
+                          username: this.username,
+                          user_id: user.user.uid
+                        });
+                        this.createUserScoreSystem();
+                      })
+                      .then(() => {
+                        this.feedback =
+                          "Başarıyla kayıt oldunuz.Giriş sayfasına yönlendiriliyorsunuz.";
+                        setTimeout(() => {
+                          this.$router.push({ name: "Login" });
+                        }, 3000);
+                      })
+                      .catch(error => {
+                        this.feedback = error.message;
                       });
-                      this.createUserScoreSystem();
-                     
-                    })
-                    .then(() => {
-                       this.feedback="Başarıyla kayıt oldunuz.Giriş sayfasına yönlendiriliyorsunuz."
-                       setTimeout(() => {
-                      this.$router.push({ name: "Login" });   
-                       }, 3000);
-                    })
-                    .catch(error => {
-                      this.feedback = error.message;
-                    });
-                }
-              });
-          }
-        });
+                  }
+                });
+            }
+          });
+        } else {
+          this.feedback = "Parolalar eşleşmiyor!";
+        }
       } else {
         this.feedback = "Lütfen tüm alanları giriniz";
       }
@@ -91,6 +100,13 @@ export default {
         username: this.username,
         score: 0
       });
+    },
+    allFieldFull() {
+      if (this.username && this.email && this.password && this.password2) {
+        return true;
+      } else {
+        return false;
+      }
     }
   }
 };
@@ -98,14 +114,14 @@ export default {
 
 
 <style  lang="css" scoped>
-.signup {
+.signUp {
   max-width: 400px !important;
   margin-top: 60px;
 }
-.signup h2 {
+.signUp h2 {
   font-size: 2.4em;
 }
-.signup .field {
+.signUp .field {
   margin-bottom: 16px;
 }
 </style>
