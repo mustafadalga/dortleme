@@ -203,9 +203,22 @@ export default {
         seenStatus: false,
         timestamp: Date.now()
       });
+      console.log(user);
       this.rejectedRequests.push(user);
+      this.deleteRejectedRequest(user);
     },
-
+    deleteRejectedRequest(user) {
+      db.collection("notifications")
+        .where("receiverEmail", "==", this.currentUser.email)
+        .where("senderEmail", "==", user.senderEmail)
+        .where("timestamp", "==", user.timestamp)
+        .get()
+        .then(notifications => {
+          notifications.forEach(notification=>{
+            db.collection('notifications').doc(notification.id).delete()
+          })
+        });
+    },
     getNotifications() {
       db.collection("notifications").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
@@ -221,7 +234,7 @@ export default {
                 timestamp: doc.timestamp
               });
             }
-          } 
+          }
         });
       });
     },
