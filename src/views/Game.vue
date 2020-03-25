@@ -30,7 +30,6 @@
             <span
               class="player-name"
             >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
-
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
             >{{ baslayanOyuncu==currentUser.email ? rakipSkor: currentUserSkor }}</span>
@@ -39,21 +38,10 @@
       </div>
     </div>
 
-    <div
-      class="dortleme-container"
-      :class="hamleSirasi!=currentUser.email ? 'cursor-not-allowed tooltip' : ''"
-    >
-      <div
-        class="tooltiptext"
-        :style="hamleSirasi!=currentUser.email ? 'display:block' : 'display:none'"
-      >
-        <span>Hamle sırası rakip oyuncuda.</span>
-        <span>Hamle yapamazsınız.</span>
-      </div>
-
-      <div class="dortleme" :class="hamleSirasi!=currentUser.email ? 'pointer-events-none ' : ''">
+    <div class="dortleme-container">
+      <div class="dortleme">
         <div v-for="row in 6" :key="row" class="row-container">
-          <div v-for="col in 8" :key="col">
+          <div v-for="col in 8" :key="col" :style="zIndexStyle ? 'z-index:-2' : null">
             <div @click="hamle" :class="renkYerlestir(row,col)" class="hucre" :row="row" :col="col"></div>
           </div>
         </div>
@@ -77,7 +65,7 @@
         <div class="msg msg-info z-depth-2" v-if="isOpenMoveCountDownAlert">
           <span
             v-if="!hamleBeklemeSuresiDolduMu"
-          >{{ moveCountDown>0 ? "Hamle yapmak için kalan süre:"+("00:"+(moveCountDown>9 ? moveCountDown : "0"+moveCountDown)) : "Süre Doldu!" }}</span>
+          >{{ moveCountDown>0 ? "Hamle yapmak için kalan süre:"+("00:"+(moveCountDown>9 ? moveCountDown : "0"+moveCountDown)) : "Süre Doldu!"}}</span>
           <span
             v-else
           >Hamle sırası gelen oyuncu:{{ hamleSirasi==currentUser.email ? currentUser.username : rakip.username }}</span>
@@ -85,7 +73,7 @@
       </div>
     </div>
 
-    <notifications position="top center" group="alert" />
+    <notifications position="bottom center" group="alert" />
 
     <div v-if="oyunDurumNo===1 || oyunDurumNo===2">
       <ExitGameConfirmModal
@@ -149,7 +137,6 @@ export default {
       isOpenGameStartCountDownAlert: true,
       isOpenMoveCountDownAlert: false,
       oyuncuKadroTamamMi: false,
-      modalName: null,
       oyunBittiMi: false,
       timeoutHandleGameStart: null,
       timeoutHandleMove: null,
@@ -157,7 +144,9 @@ export default {
       moveCountDown: null,
       oyunDurumNo: null,
       oyunBeklemeSuresiDolduMu: false,
-      hamleBeklemeSuresiDolduMu: false
+      hamleBeklemeSuresiDolduMu: false,
+      zIndexStyle: false,
+      dortluKonumlar: []
     };
   },
   created() {
@@ -200,7 +189,7 @@ export default {
           .get()
           .then(querySnapshot => {
             if (querySnapshot.size === 0) {
-              this.hamleBeklemeSuresiDolduMu = false;
+              //       this.hamleBeklemeSuresiDolduMu = false;
               let simdikiZaman = new Date();
               let beklemeSuresi = 60 * 1000;
               let bitisTarih = new Date(simdikiZaman.getTime() + beklemeSuresi);
@@ -211,12 +200,14 @@ export default {
                   simdikiZaman: simdikiZaman,
                   bitisTarih: bitisTarih
                 })
-                .then(() => {
-                  console.log(this.hamleBeklemeSuresiDolduMu);
-                  resolve(true);
-                })
+                .then(() => resolve(true))
                 .catch(() => reject(false));
             }
+          })
+          .then(() => {
+            console.log(this.takimNo);
+            console.log(this.aktifTakim);
+            console.log(this.hamleSirasi);
           });
       });
     },
@@ -234,10 +225,18 @@ export default {
                   simdikiZaman: new Date()
                 })
                 .then(() => resolve(true))
-                .catch(() => reject(false));
+                .catch(() => {
+                  this.hamleBeklemeSuresiGuncelle(moveCountDownId);
+                  reject(false);
+                });
             }
           });
       });
+    },
+    kalanSuresiGetir(datetime) {
+      let simdikiZaman = datetime.simdikiZaman.seconds;
+      let bitisTarih = datetime.bitisTarih.seconds;
+      return bitisTarih - simdikiZaman;
     },
     hamleBeklemeSuresiGoster() {
       window.clearTimeout(this.timeoutHandleMove);
@@ -251,10 +250,9 @@ export default {
             !this.hamleBeklemeSuresiDolduMu
           ) {
             this.moveScaleCSS = "scale-in";
-            let simdikiZaman = change.doc.data().simdikiZaman.seconds;
-            let bitisTarih = change.doc.data().bitisTarih.seconds;
-            this.moveCountDown = bitisTarih - simdikiZaman;
-
+            this.hamleBeklemeSuresiDolduMu = false;
+            this.moveCountDown = this.kalanSuresiGetir(change.doc.data());
+            //   console.log(this.kazananOyuncu)
             if (this.moveCountDown >= 0) {
               let moveCountDownId = change.doc.id;
               if (
@@ -262,11 +260,7 @@ export default {
                 this.kazananOyuncu === null
               ) {
                 this.timeoutHandleMove = setTimeout(() => {
-                  this.hamleBeklemeSuresiGuncelle(moveCountDownId).then(
-                    value => {
-                      console.log(value);
-                    }
-                  );
+                  this.hamleBeklemeSuresiGuncelle(moveCountDownId);
                 }, 1000);
                 this.moveCountDown <= 60
                   ? (this.isOpenMoveCountDownAlert = true)
@@ -350,7 +344,6 @@ export default {
                 this.gameStartCountDown = kalanSure <= 45 ? kalanSure : null;
                 let gameStartCountDownTimerId = change.doc.id;
                 this.timeoutHandleGameStart = setTimeout(() => {
-                  console.log("devam ediliyor." + kalanSure);
                   db.collection("game_waits")
                     .doc(gameStartCountDownTimerId)
                     .get()
@@ -395,8 +388,8 @@ export default {
                 .delete();
             });
           })
-          .then(() => resolve("oyunBeklemeSuresiSilindi+"))
-          .catch(() => reject("oyunBeklemeSuresiSilinmedi-"));
+          .then(() => resolve(true))
+          .catch(() => reject(false));
       });
     },
     hamleBeklemeSuresiVarmi() {
@@ -492,12 +485,12 @@ export default {
           });
         });
     },
-    notificationAlert(title, text) {
+    notificationAlert(messageType, title, text) {
       this.$notify({
         group: "alert",
         title: title,
         text: text,
-        type: "warn"
+        type: messageType
       });
     },
     openExitGameConfirmModal() {
@@ -568,7 +561,7 @@ export default {
                   .delete();
               });
             });
-        })
+        });
     },
 
     oyuncuKadroDegistir(status) {
@@ -579,11 +572,15 @@ export default {
         });
     },
     oyuncuDurumNoDegistir(no) {
-      db.collection("game_rooms")
-        .doc(this.oyunNo)
-        .update({
-          oyunDurumNo: no
-        });
+      return new Promise((resolve, reject) => {
+        db.collection("game_rooms")
+          .doc(this.oyunNo)
+          .update({
+            oyunDurumNo: no
+          })
+          .then(() => resolve(true))
+          .catch(() => reject(false));
+      });
     },
     oyunSil() {
       db.collection("game_rooms")
@@ -620,7 +617,9 @@ export default {
         });
       this.kazananOyuncuSifirla();
       this.oyuncuDurumNoDegistir(0);
-      this.hamleBeklemeSuresiOlustur();
+      setTimeout(() => {
+        this.hamleBeklemeSuresiOlustur();
+      }, 1500);
     },
     oyunVerileriSifirla() {
       this.moveCountDown = null;
@@ -649,30 +648,56 @@ export default {
           this.hamleSırasiGetir();
         });
     },
-    hamle(event) {
-      this.hamleSoundEfeck();
-      const col = parseInt(event.target.attributes.col.value);
-
-      let enAltSatir = this.altSatirBul(col);
-      if (enAltSatir) {
-        this.row = enAltSatir;
-        this.col = col;
-        this.renk = this.takimRenkGetir();
-        this.takimNo = this.aktifTakim;
-        this.takimDegistir();
-        this.hamleKaydet();
-        this.hamleSirasiDegistir();
-
-        window.clearTimeout(this.timeoutHandleMove);
-        setTimeout(() => {
-          if (!this.hamleBeklemeSuresiDolduMu && this.kazananOyuncu === null) {
-            this.hamleBeklemeSuresiDolduMu = true;
-            console.log("oluşturuldu");
-            this.hamleBeklemeSuresiYenidenBaslat();
-          }
-        }, 2000);
+    hamleSirasiBendeMi() {
+      if (this.hamleSirasi === this.currentUser.email) {
+        return true;
       } else {
-        this.notificationAlert("Uyarı", "Hamle yapmak istediğiniz satir dolu.");
+        return false;
+      }
+    },
+    hamle(event) {
+      if (this.hamleSirasiBendeMi()) {
+        this.zIndexStyle = true;
+        setTimeout(() => {
+          this.zIndexStyle = false;
+        }, 1500);
+        this.hamleSoundEfeck();
+        const col = parseInt(event.target.attributes.col.value);
+
+        let enAltSatir = this.altSatirBul(col);
+        if (enAltSatir) {
+          this.row = enAltSatir;
+          this.col = col;
+          this.renk = this.takimRenkGetir();
+          this.takimNo = this.aktifTakim;
+          this.takimDegistir();
+          this.hamleKaydet();
+          this.hamleSirasiDegistir();
+
+          window.clearTimeout(this.timeoutHandleMove);
+          setTimeout(() => {
+            if (
+              !this.hamleBeklemeSuresiDolduMu &&
+              this.kazananOyuncu === null
+            ) {
+              this.hamleBeklemeSuresiDolduMu = true;
+              console.log("oluşturuldu");
+              this.hamleBeklemeSuresiYenidenBaslat();
+            }
+          }, 2000);
+        } else {
+          this.notificationAlert(
+            "error",
+            "Uyarı",
+            "Hamle yapmak istediğiniz satir dolu."
+          );
+        }
+      } else {
+        this.notificationAlert(
+          "error",
+          "Hamle Sırası",
+          "Hamle sırası rakip oyuncuda.Hamle yapamazsınız!"
+        );
       }
     },
     hamlelerListele() {
@@ -680,14 +705,11 @@ export default {
         .where("oyunNo", "==", this.oyunNo)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
-            if (change.type == "added") {
+            if (change.type === "added" || change.type === "modified") {
               let doc = change.doc.data();
 
-              let hamleIndex = this.hamleler.findIndex(hamle => {
-                return hamle.row == doc.row && hamle.col == doc.col;
-              });
-
-              if (hamleIndex === -1) {
+              let hamleIndex = this.hamleIndexGetir(doc.row, doc.col);
+              if (!this.hamleVarmi(hamleIndex)) {
                 this.hamleler.push({
                   row: doc.row,
                   col: doc.col,
@@ -696,6 +718,10 @@ export default {
                 this.aktifTakim = doc.aktifTakim;
                 this.takimNo = doc.takimNo;
                 this.takimHamleSayisiArtir();
+              } else {
+                this.hamleler[hamleIndex].row = doc.row;
+                this.hamleler[hamleIndex].col = doc.col;
+                this.hamleler[hamleIndex].renk = doc.renk;
               }
             }
           });
@@ -727,12 +753,21 @@ export default {
           this.oyunuKazandiMi(this.row, this.col);
         });
     },
-    hamleKaydet() {
-      let hamleVarmi = this.hamleler.findIndex(hamle => {
-        return hamle.row == this.row && hamle.col == this.col;
+    hamleIndexGetir(row, col) {
+      return this.hamleler.findIndex(hamle => {
+        return hamle.row === row && hamle.col === col;
       });
-
-      if (hamleVarmi === -1) {
+    },
+    hamleVarmi(hamleIndex) {
+      if (hamleIndex === -1) {
+        return false;
+      } else {
+        return true;
+      }
+    },
+    hamleKaydet() {
+      let hamleIndex = this.hamleIndexGetir(this.row, this.col);
+      if (!this.hamleVarmi(hamleIndex)) {
         db.collection("hamleler")
           .add({
             row: this.row,
@@ -760,6 +795,7 @@ export default {
       });
     },
     caprazKontrol(satirNo, sutunNo) {
+      this.dortluKonumlar = [];
       let hucreSayisi = 0;
 
       hucreSayisi = this.caprazAsagiSolKontrol(satirNo, sutunNo, hucreSayisi);
@@ -773,6 +809,7 @@ export default {
       }
 
       hucreSayisi = 0;
+      this.dortluKonumlar = [];
       hucreSayisi = this.caprazAsagiSagKontrol(satirNo, sutunNo, hucreSayisi);
       if (this.dortluTamamlandimi(hucreSayisi)) {
         this.oyunTamamlandi();
@@ -789,6 +826,7 @@ export default {
       for (let sutun = sutunNo - 1; sutun > 0; sutun--) {
         renkKodu = this.hucreRenginiGetir(satirNo, sutun);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({ row: satirNo, col: sutun });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -805,6 +843,7 @@ export default {
       for (let sutun = sutunNo; sutun < 9; sutun++) {
         renkKodu = this.hucreRenginiGetir(satirNo, sutun);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({ row: satirNo, col: sutun });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -823,6 +862,7 @@ export default {
       for (let sutun = sutunNo; sutun > 0; sutun--) {
         renkKodu = this.hucreRenginiGetir(satirNo, sutun);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({ row: satirNo, col: sutun });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -842,6 +882,7 @@ export default {
       for (let sutun = sutunNo + 1; sutun < 9; sutun++) {
         renkKodu = this.hucreRenginiGetir(satirNo, sutun);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({ row: satirNo, col: sutun });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -867,6 +908,10 @@ export default {
       for (let index = satirNo; index < 7; index++) {
         renkKodu = this.hucreRenginiGetir(index, sutunNo);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({
+            row: index,
+            col: sutunNo
+          });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -878,6 +923,7 @@ export default {
       return hucreSayisi;
     },
     yatayKontrol(satirNo, sutunNo) {
+      this.dortluKonumlar = [];
       let hucreSayisi = this.yataySoldanKontrol(satirNo, sutunNo);
       if (this.dortluTamamlandimi(hucreSayisi)) {
         this.oyunTamamlandi();
@@ -894,6 +940,10 @@ export default {
       for (let index = sutunNo + 1; index < 9; index++) {
         renkKodu = this.hucreRenginiGetir(satirNo, index);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({
+            row: satirNo,
+            col: index
+          });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -909,6 +959,10 @@ export default {
       for (let index = sutunNo; index > 0; index--) {
         renkKodu = this.hucreRenginiGetir(satirNo, index);
         if (renkKodu == this.takimNo) {
+          this.dortluKonumlar.push({
+            row: satirNo,
+            col: index
+          });
           hucreSayisi++;
           if (this.dortluTamamlandimi(hucreSayisi)) {
             return 4;
@@ -941,16 +995,6 @@ export default {
         });
     },
     kazananOyuncuSifirla() {
-      /*
-      if (this.kazananOyuncu) {
-        db.collection("game_rooms")
-          .doc(this.oyunNo)
-          .update({
-            kazananOyuncu: null,
-            hamleSirasi: this.currentUser.email
-          });
-      }
-*/
       return new Promise((resolve, reject) => {
         if (this.kazananOyuncu) {
           db.collection("game_rooms")
@@ -988,9 +1032,20 @@ export default {
             this.oyunBittiMi
           ) {
             console.log("yeni oyun veri sıfırla");
-            console.log(change.doc.data().kazananOyuncu);
+            //console.log(change.doc.data().kazananOyuncu);
             this.kazananOyuncu = null;
+            this.notificationAlert(
+              "success",
+              "Yeni Oyun",
+              "Yeni oyun başladı."
+            );
             this.oyunVerileriSifirla();
+            /*
+            setTimeout(() => {
+            
+            }, 1200);
+            */
+            this.whichPlayerStart();
           }
         });
       });
@@ -1079,11 +1134,39 @@ export default {
         this.yesilHamleSayisi++;
       }
     },
+    dortleyenAnimasyonBaslat() {
+      this.dortluKonumlar.forEach(hucre => {
+        db.collection("hamleler")
+          .where("oyunNo", "==", this.oyunNo)
+          .where("row", "==", hucre.row)
+          .where("col", "==", hucre.col)
+          .get()
+          .then(querySnapshot =>
+            querySnapshot.forEach(doc => {
+              db.collection("hamleler")
+                .doc(doc.id)
+                .update({
+                  renk: "dortluAnimasyon"
+                });
+            })
+          );
+      });
+    },
     oyunTamamlandi() {
+      this.dortleyenAnimasyonBaslat();
       this.oyunBittiMi = true;
       this.hamleBeklemeSuresiDolduMu = true;
       this.isOpenMoveCountDownAlert = false;
-      this.oyuncuDurumNoDegistir(5);
+      this.yesilHamleSayisi = 0;
+      this.kirmiziHamleSayisi = 0;
+      this.aktifTakim = null;
+      this.takimNo = null;
+      this.hamleSirasi = null;
+      this.moveCountDown = null;
+
+      setTimeout(() => {
+        this.oyuncuDurumNoDegistir(5);
+      }, 3000);
       this.kazananOyuncuEkle(this.currentUser.email);
       this.skorArtir(this.currentUser.email);
       this.hamleBeklemeSuresiSil();
