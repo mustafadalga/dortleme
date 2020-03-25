@@ -24,7 +24,6 @@ body {
     width: calc(12*4em);
     height: calc(6*4em);
     position: relative;
-    z-index: 0;
 }
 
 .dortleme::before {
@@ -64,6 +63,7 @@ body {
     border-radius: 50%;
     border: 2px solid #000;
     box-sizing: border-box;
+    z-index: 988889;
 }
 
 .bg-green {
@@ -126,30 +126,6 @@ body {
     pointer-events: none;
 }
 
-.tooltip .tooltiptext {
-    visibility: hidden;
-    width: 60%;
-    background-color: #ef5350;
-    color: #fff;
-    text-align: center;
-    border-radius: 6px;
-    padding: 1em;
-    /* Position the tooltip */
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 1;
-}
-
-.tooltip .tooltiptext span {
-    display: block;
-}
-
-.tooltip:hover .tooltiptext {
-    visibility: visible;
-}
-
 .msg {
     width: 100%;
     border: 1px solid;
@@ -181,6 +157,24 @@ body {
     bottom: 0%;
     left: 50%;
     transform: translate(-50%, -25%)
+}
+
+.dortluAnimasyon {
+    animation-name: dortluAnimasyon;
+    animation-duration: .25s;
+    animation-timing-function: ease;
+    animation-iteration-count: infinite;
+}
+
+@keyframes dortluAnimasyon {
+    0% {
+        background: #56ab2f;
+        background: -webkit-linear-gradient(to right, #a8e063, #56ab2f);
+        background: linear-gradient(to right, #a8e063, #56ab2f);
+    }
+    100% {
+        background: rgba(255, 0, 0, .8);
+    }
 }
 
 
