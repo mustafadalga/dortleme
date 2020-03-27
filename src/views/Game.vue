@@ -51,7 +51,7 @@
       <div class="alert-bottom scale-transition" :class="gameStartScaleCSS">
         <div class="msg msg-info z-depth-2" v-if="isOpenGameStartCountDownAlert">
           <span v-if="!oyunBeklemeSuresiDolduMu">Rakip oyuncu bekleniliyor...</span>
-          <span>{{ gameStartCountDown>0 ? ("00:"+(gameStartCountDown>9 ? gameStartCountDown : "0"+gameStartCountDown)) : gameStartCountDown==null ? "": "Süre Doldu!" }}</span>
+          <span>{{ gameStartCountDown>0 && !oyunBeklemeSuresiDolduMu ? ("00:"+(gameStartCountDown>9 ? gameStartCountDown : "0"+gameStartCountDown)) : gameStartCountDown==null ? "": "Süre Doldu!" }}</span>
         </div>
       </div>
     </div>
@@ -147,17 +147,17 @@ export default {
   },
   created() {
     this.currentUser = this.$session.get("user");
-    this.updatePlayersPlayingStatus(true);
-    this.oyunNo = this.$session.get("oyunNo");
-    this.whichPlayerStart();
     this.rakip = this.$session.get("rakipOyuncu");
+    this.oyunNo = this.$session.get("oyunNo");
+    this.updatePlayersPlayingStatus(true);
+    this.whichPlayerStart();
     this.hamlelerListele();
     this.kazananOyuncuGetir();
     this.skorGetir();
     this.oyuncuKadroTamamlandiMi();
     this.rakipOyuncuBeklemeSuresiGoster();
     this.hamleBeklemeSuresiGoster();
-    console.log()
+    this.oyunOdasiVarmi()
   },
   methods: {
     updatePlayersPlayingStatus(status) {
@@ -336,9 +336,7 @@ export default {
             change.doc.data().oyunNo == this.oyunNo
           ) {
             if (!this.oyuncuKadroTamamMi && this.oyunDurumNo == null) {
-              let simdikiZaman = change.doc.data().simdikiZaman.seconds;
-              let bitisTarih = change.doc.data().bitisTarih.seconds;
-              let kalanSure = bitisTarih - simdikiZaman;
+             let kalanSure=this.kalanSuresiGetir(change.doc.data());
               if (kalanSure > 0) {
                 this.gameStartCountDown = kalanSure <= 45 ? kalanSure : null;
                 let gameStartCountDownTimerId = change.doc.id;
@@ -357,19 +355,32 @@ export default {
                     });
                 }, 1000);
               } else {
+                console.log("süre doldu ")
                 this.oyunBeklemeSuresiDolduMu = true;
                 window.clearTimeout(this.timeoutHandleGameStart);
                 this.oyunBeklemeSuresiSil();
-                this.kazananOyuncuEkle(this.currentUser.email);
                 this.skorArtir(this.rakip.email);
-                setTimeout(() => {
-                  this.oyunDurumNo = 4;
-                }, 2000);
+                this.oyunSil();
+                this.bildirimSil();
+                this.updatePlayersPlayingStatus(false);
+                this.kazananOyuncu=this.currentUser.email
+                this.oyunDurumNo = 4;                 
               }
             }
           }
         });
       });
+      
+    },
+    oyunOdasiVarmi(){
+       db.collection('game_rooms').doc(this.oyunNo)
+       .get().then(doc=>{
+         if (!doc.exists) {
+          this.updatePlayersPlayingStatus(false);
+           this.oyunSessionSil()
+           this.$router.push({ name: "Home" });
+         }
+       })
     },
     oyunBeklemeSuresiSil() {
       return new Promise((resolve, reject) => {
@@ -413,14 +424,17 @@ export default {
           }
         });
     },
-    oyunKadroTamamlanmaDurumAlert(){
-    if (this.$session.get("oyunKadroTamamMi") === undefined || this.$session.get('oyunKadroTamamMi')===false) {
-                this.notificationAlert(
-                  "success",
-                  "Kadro Tamamlandı",
-                  "Rakip oyuncu oyuna dahil oldu.Oyun başladı."
-                );
-              }
+    oyunKadroTamamlanmaDurumAlert() {
+      if (
+        this.$session.get("oyunKadroTamamMi") === undefined ||
+        this.$session.get("oyunKadroTamamMi") === false
+      ) {
+        this.notificationAlert(
+          "success",
+          "Kadro Tamamlandı",
+          "Rakip oyuncu oyuna dahil oldu.Oyun başladı."
+        );
+      }
     },
     oyuncuKadroTamamlandiMi() {
       db.collection("game_rooms")
@@ -432,7 +446,7 @@ export default {
               change.doc.data().oyuncuKadroTamamMi &&
               change.doc.data().kazananOyuncu === null
             ) {
-              this.oyunKadroTamamlanmaDurumAlert()
+              this.oyunKadroTamamlanmaDurumAlert();
               this.oyunDurumNo = 0;
               window.clearTimeout(this.timeoutHandleGameStart);
               if (!this.oyuncuKadroTamamMi) {
@@ -457,8 +471,6 @@ export default {
                   this.gameStartScaleCSS = "scale-out";
                 }, 2000);
               }
-
-
             } else if (
               (change.type === "added" || change.type === "modified") &&
               change.doc.data().oyuncuKadroTamamMi === false &&
@@ -467,7 +479,7 @@ export default {
               if (this.oyunDurumNo !== 0) {
                 this.gameStartScaleCSS = "scale-in";
                 this.$session.set("oyunKadroTamamMi", false);
-                console.log(this.$session.get('oyunKadroTamamMi'))
+                console.log(this.$session.get("oyunKadroTamamMi"));
               }
             } else if (
               (change.type === "added" || change.type === "modified") &&
@@ -532,7 +544,6 @@ export default {
         this.oyunSil();
       } else if (this.oyunDurumNo === 4) {
         this.bildirimSil();
-        this.oyunHamleSil();
         this.oyunSil();
       } else if (this.oyunDurumNo === 5 || this.oyunDurumNo === 6) {
         this.oyuncuKadroDegistir(false);
@@ -750,8 +761,8 @@ export default {
                 this.takimNo = doc.takimNo;
                 this.takimHamleSayisiArtir();
               } else {
-          //      this.hamleler[hamleIndex].row = doc.row;
-            //    this.hamleler[hamleIndex].col = doc.col;
+                //      this.hamleler[hamleIndex].row = doc.row;
+                //    this.hamleler[hamleIndex].col = doc.col;
                 this.hamleler[hamleIndex].renk = doc.renk;
               }
             }
