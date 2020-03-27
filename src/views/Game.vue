@@ -2,7 +2,6 @@
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
     <button @click="dbreset">Sıfırla</button>
-    {{ moveCountDown}}
     <div class="container center">
       <div class="row">
         <div class="col s6 m3">
@@ -53,9 +52,6 @@
         <div class="msg msg-info z-depth-2" v-if="isOpenGameStartCountDownAlert">
           <span v-if="!oyunBeklemeSuresiDolduMu">Rakip oyuncu bekleniliyor...</span>
           <span>{{ gameStartCountDown>0 ? ("00:"+(gameStartCountDown>9 ? gameStartCountDown : "0"+gameStartCountDown)) : gameStartCountDown==null ? "": "Süre Doldu!" }}</span>
-        </div>
-        <div class="msg msg-info z-depth-2" v-else>
-          <span>Rakip oyuncu oyuna dahil oldu.Oyun başladı</span>
         </div>
       </div>
     </div>
@@ -161,6 +157,7 @@ export default {
     this.oyuncuKadroTamamlandiMi();
     this.rakipOyuncuBeklemeSuresiGoster();
     this.hamleBeklemeSuresiGoster();
+    console.log()
   },
   methods: {
     updatePlayersPlayingStatus(status) {
@@ -205,9 +202,11 @@ export default {
             }
           })
           .then(() => {
+            /*
             console.log(this.takimNo);
             console.log(this.aktifTakim);
             console.log(this.hamleSirasi);
+            */
           });
       });
     },
@@ -414,6 +413,15 @@ export default {
           }
         });
     },
+    oyunKadroTamamlanmaDurumAlert(){
+    if (this.$session.get("oyunKadroTamamMi") === undefined || this.$session.get('oyunKadroTamamMi')===false) {
+                this.notificationAlert(
+                  "success",
+                  "Kadro Tamamlandı",
+                  "Rakip oyuncu oyuna dahil oldu.Oyun başladı."
+                );
+              }
+    },
     oyuncuKadroTamamlandiMi() {
       db.collection("game_rooms")
         .where("oyunNo", "==", this.oyunNo)
@@ -424,19 +432,12 @@ export default {
               change.doc.data().oyuncuKadroTamamMi &&
               change.doc.data().kazananOyuncu === null
             ) {
+              this.oyunKadroTamamlanmaDurumAlert()
               this.oyunDurumNo = 0;
               window.clearTimeout(this.timeoutHandleGameStart);
-
-              if (!this.$session.get("oyunKadroTamamMi")) {
-                window.setTimeout(() => {
-                  this.gameStartScaleCSS = "scale-out";
-                }, 2000);
-              }
-
               if (!this.oyuncuKadroTamamMi) {
                 this.isOpenGameStartCountDownAlert = false;
                 this.isOpenMoveCountDownAlert = true;
-
                 this.oyuncuKadroTamamMi = true;
                 this.$session.set("oyunKadroTamamMi", true);
                 this.oyunBeklemeSuresiSil();
@@ -450,6 +451,14 @@ export default {
                   }, 3000);
                 }
               }
+
+              if (!this.$session.get("oyunKadroTamamMi")) {
+                window.setTimeout(() => {
+                  this.gameStartScaleCSS = "scale-out";
+                }, 2000);
+              }
+
+
             } else if (
               (change.type === "added" || change.type === "modified") &&
               change.doc.data().oyuncuKadroTamamMi === false &&
@@ -458,6 +467,7 @@ export default {
               if (this.oyunDurumNo !== 0) {
                 this.gameStartScaleCSS = "scale-in";
                 this.$session.set("oyunKadroTamamMi", false);
+                console.log(this.$session.get('oyunKadroTamamMi'))
               }
             } else if (
               (change.type === "added" || change.type === "modified") &&
@@ -655,15 +665,42 @@ export default {
         return false;
       }
     },
+    oyunBasladiMi() {
+      if (this.oyuncuKadroTamamMi) {
+        return true;
+      } else {
+        return false;
+      }
+    },
+    hamleYapilsinMi() {
+      if (this.oyunBasladiMi()) {
+        if (this.hamleSirasiBendeMi()) {
+          return true;
+        } else {
+          this.notificationAlert(
+            "error",
+            "Hamle Sırası",
+            "Hamle sırası rakip oyuncuda.Hamle yapamazsınız!"
+          );
+          return false;
+        }
+      } else {
+        this.notificationAlert(
+          "error",
+          "Rakip Bekleniliyor...",
+          "Rakip oyuncu " + this.rakip.username + " oyuna dahil olmadı."
+        );
+        return false;
+      }
+    },
     hamle(event) {
-      if (this.hamleSirasiBendeMi()) {
+      if (this.hamleYapilsinMi()) {
         this.zIndexStyle = true;
         setTimeout(() => {
           this.zIndexStyle = false;
         }, 1500);
         this.hamleSoundEfeck();
         const col = parseInt(event.target.attributes.col.value);
-
         let enAltSatir = this.altSatirBul(col);
         if (enAltSatir) {
           this.row = enAltSatir;
@@ -692,12 +729,6 @@ export default {
             "Hamle yapmak istediğiniz satir dolu."
           );
         }
-      } else {
-        this.notificationAlert(
-          "error",
-          "Hamle Sırası",
-          "Hamle sırası rakip oyuncuda.Hamle yapamazsınız!"
-        );
       }
     },
     hamlelerListele() {
@@ -719,8 +750,8 @@ export default {
                 this.takimNo = doc.takimNo;
                 this.takimHamleSayisiArtir();
               } else {
-                this.hamleler[hamleIndex].row = doc.row;
-                this.hamleler[hamleIndex].col = doc.col;
+          //      this.hamleler[hamleIndex].row = doc.row;
+            //    this.hamleler[hamleIndex].col = doc.col;
                 this.hamleler[hamleIndex].renk = doc.renk;
               }
             }
@@ -1031,7 +1062,7 @@ export default {
             change.doc.data().oyunDurumNo === 0 &&
             this.oyunBittiMi
           ) {
-            console.log("yeni oyun veri sıfırla");
+            console.log("Yeni oyun veri sıfırla");
             //console.log(change.doc.data().kazananOyuncu);
             this.kazananOyuncu = null;
             this.notificationAlert(
@@ -1040,11 +1071,6 @@ export default {
               "Yeni oyun başladı."
             );
             this.oyunVerileriSifirla();
-            /*
-            setTimeout(() => {
-            
-            }, 1200);
-            */
             this.whichPlayerStart();
           }
         });
