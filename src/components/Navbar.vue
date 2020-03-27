@@ -1,13 +1,16 @@
 <template>
   <nav class="deep-purple darken-1">
     <div class="container">
-      <router-link :to="{name:'Home'}" class="brand-logo left">
+      <router-link v-if="$route.name==='Game'"  :to="{name:'Game'}"   class="brand-logo left">
+        <span class="brand-text">Connection 4</span>
+      </router-link>
+       <router-link v-else-if="$route.name!=='Game'"   :to="{name:'Home'}"  class="brand-logo left">
         <font-awesome-icon :icon="['fas', 'home']" />
         <span class="brand-text">Connection 4</span>
       </router-link>
       <ul class="right">
         <li v-if="!currentUser">
-          <router-link :to="{name:'Signup'}">
+          <router-link  :to="{name:'Signup'}">
             <font-awesome-icon :icon="['fas', 'user-plus']" class="font-awesome-size" />
           </router-link>
         </li>
@@ -16,12 +19,13 @@
             <font-awesome-icon :icon="['fas', 'sign-in-alt']" class="font-awesome-size" />
           </router-link>
         </li>
-        <li v-if="currentUser && this.$route.name=='Game'">
+        <li v-if="currentUser && $route.name=='Game'">
           <a @click="oyunCikis">
             <font-awesome-icon :icon="['fas', 'times-circle']" class="font-awesome-size" />
+          
           </a>
         </li>
-        <li v-if="currentUser" class="rating-logo">
+        <li v-if="currentUser && $route.name!=='Game'" class="rating-logo" >
           <router-link
             :to="{name:'Ratings'}"
             style="position:relative;"
@@ -30,7 +34,7 @@
             <img src="../assets/img/rating.png" />
           </router-link>
         </li>
-        <li v-if="currentUser">
+        <li v-if="currentUser  && $route.name!=='Game'">
           <router-link
             :to="{name:'Notifications'}"
             style="position:relative;"
@@ -48,7 +52,7 @@
           </router-link>
         </li>
 
-        <li v-if="currentUser">
+        <li v-if="currentUser  && $route.name!=='Game'">
           <a @click="logout">
             <font-awesome-icon :icon="['fas', 'sign-out-alt']" class="font-awesome-size" />
           </a>
