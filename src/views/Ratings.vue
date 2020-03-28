@@ -2,6 +2,10 @@
   <div id="notifications">
     <Navbar />
     <div class="ratings container">
+      <div class="card">
+<h2 class="center deep-purple-text" style="padding:.5em">Ratings</h2>
+     
+           
       <ul class="collection">
         <li class="collection-item row font-bold">
           <div class="collection-number col s2 m1">Sıralama</div>
@@ -19,6 +23,7 @@
         </li>
       </ul>
     </div>
+     </div>
   </div>
 </template>
 
