@@ -2,7 +2,9 @@
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
     <button @click="dbreset">Sıfırla</button>
+    <button @click="notificationAlert('error','ddd','ddd')">TEST</button>
     <div class="container center">
+
       <div class="row">
         <div class="col s6 m3">
           <div
@@ -69,7 +71,7 @@
       </div>
     </div>
 
-    <notifications position="bottom center" group="alert" />
+    <notifications position="top right" group="alert" />
 
     <div v-if="oyunDurumNo===1 || oyunDurumNo===2">
       <ExitGameConfirmModal
@@ -512,7 +514,7 @@ export default {
         group: "alert",
         title: title,
         text: text,
-        type: messageType
+        type: messageType,
       });
     },
     openExitGameConfirmModal() {
@@ -1240,4 +1242,7 @@ export default {
 </style>
 <style lang="css" scoped >
 @import "../assets/css/dortleme.css";
+.vue-notification-group{
+  margin-top:64px;
+}
 </style>
