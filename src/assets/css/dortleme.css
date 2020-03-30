@@ -118,14 +118,6 @@ body {
     border: 5px solid #42a5f5;
 }
 
-.cursor-not-allowed {
-    cursor: not-allowed;
-}
-
-.pointer-events-none {
-    pointer-events: none;
-}
-
 .msg {
     width: 100%;
     border: 1px solid;
