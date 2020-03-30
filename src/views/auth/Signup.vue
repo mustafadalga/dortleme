@@ -20,14 +20,21 @@
           <label for="password">Parola Onayla:</label>
           <input type="password" name="password2" v-model="password2" autocomplete="off" />
         </div>
-        <p
-          class="deep-purple-text font-size-12"
-        >Kayıt onayı için kullandığınız email adresinize doğrulama bağlantısı gönderilecektir.</p>
-        <p class="deep-purple-text font-size-13"  v-if="feedback">{{ feedback }}</p>
+
+        <div
+          class="field deep-purple-text font-size-12"
+        >Kayıt onayı için kullandığınız email adresinize doğrulama bağlantısı gönderilecektir.</div>
+
+        <div class="field deep-purple-text font-size-13" v-if="feedback">{{ feedback }}</div>
+
         <div class="field center">
           <button class="btn deep-purple">Kayıt Ol</button>
         </div>
-        
+
+        <div class="field font-size-12 options">
+          <router-link :to="{name:'Login'}" class="left">Giriş Yap</router-link>
+          <router-link :to="{name:'ResetPassword'}" class="right">Parolanızı mı unuttunuz ?</router-link>
+        </div>
       </form>
     </div>
   </div>
@@ -49,12 +56,10 @@ export default {
       password2: null,
       username: null,
       feedback: null,
-      statusNo: null
     };
   },
   methods: {
     signUp() {
-      this.statusNo = null;
       if (!this.allFieldFull()) {
         this.feedback = "Lütfen tüm alanları giriniz";
       } else if (!this.checkPasswordLength()) {
@@ -62,43 +67,47 @@ export default {
       } else if (!this.isPasswordMatch()) {
         this.feedback = "Parolalarınız eşleşmiyor.";
       } else {
-        let ref = db.collection("users").doc(this.email);
-        ref.get().then(doc => {
-          if (doc.exists) {
-            this.feedback = "Girdiğiniz email adresi kullanılıyor.";
-          } else {
-            db.collection("users")
-              .where("username", "==", this.username)
-              .get()
-              .then(doc => {
-                if (doc.size > 0) {
-                  this.feedback = "Girdiğiniz kullanıcı adı kullanılıyor.";
-                } else {
-                  firebase
-                    .auth()
-                    .createUserWithEmailAndPassword(this.email, this.password)
-                    .then(user => {
-                      ref.set({
-                        username: this.username,
-                        user_id: user.user.uid
-                      });
-                      this.createUserScoreSystem();
-                      this.verifyEmail();
-                    })
-                    .then(() => {
-                      this.feedback = "Başarıyla kayıt oldunuz.Kayıt onayı için kullandığınız email adresinize doğrulama bağlantısı gönderildi";
-                      setTimeout(() => {
-                        this.feedback = "Giriş sayfasına yönlendiriliyorsunuz.";
-                      }, 1500);
-                        setTimeout(() => {
-                          this.$router.push({ name: "Login" });
-                        },2500);
-                    })
-                    .catch(error => {
-                      this.feedback = error.message;
-                    });
+        this.isUsernameExists().then(userStatus => {
+          if (userStatus === true) {
+            this.feedback = `${this.username} kullanıcı adı kullanılıyor.`;
+          } else if (userStatus === false) {
+            let ref = db.collection("users").doc(this.email);
+            firebase
+              .auth()
+              .createUserWithEmailAndPassword(this.email, this.password)
+              .then(user => {
+                ref.set({
+                  username: this.username,
+                  user_id: user.user.uid
+                });
+                this.createUserScoreSystem();
+                this.verifyEmail();
+              })
+              .then(() => {
+                this.feedback =
+                  "Başarıyla kayıt oldunuz.Kayıt onayı için kullandığınız email adresinize doğrulama bağlantısı gönderildi.";
+                setTimeout(() => {
+                  this.feedback = "Giriş sayfasına yönlendiriliyorsunuz.";
+                }, 1500);
+                setTimeout(() => {
+                  this.$router.push({ name: "Login" });
+                }, 2500);
+              })
+              .catch(error => {
+                switch (error.code) {
+                  case "auth/email-already-in-use":
+                    this.feedback = `${this.email} email adresi  kullanılıyor.`;
+                    break;
+                  case "auth/invalid-email":
+                    this.feedback = `${this.email} geçersiz bir email adresidir.`;
+                    break;
+                  default:
+                    this.feedback = error.message;
+                    break;
                 }
               });
+          } else {
+            this.feedback = userStatus.message;
           }
         });
       }
@@ -110,14 +119,35 @@ export default {
         score: 0
       });
     },
+    isUsernameExists() {
+      return new Promise((resolve, reject) => {
+        db.collection("users")
+          .where("username", "==", this.username)
+          .get()
+          .then(doc => {
+            if (doc.size > 0) {
+              return true;
+            } else {
+              return false;
+            }
+          })
+          .then(value => resolve(value))
+          .catch(error => reject(error));
+      });
+    },
     verifyEmail() {
       var user = firebase.auth().currentUser;
-      //console.log(user.emailVerified);
+      var that = this;
+
+      var actionCodeSettings = {
+        url: "https://dortleme.firebaseapp.com/login",
+        handleCodeInApp: true
+      };
       user
-        .sendEmailVerification()
+        .sendEmailVerification(actionCodeSettings)
         .then(function() {})
         .catch(function(error) {
-          this.feedback=error.message
+          that.feedback = error.message;
         });
     },
     allFieldFull() {
@@ -148,6 +178,7 @@ export default {
 .signUp {
   max-width: 400px !important;
   margin-top: 60px;
+  position: relative;
 }
 .signUp h2 {
   font-size: 2.4em;
@@ -158,8 +189,7 @@ export default {
 .font-size-12 {
   font-size: 12px;
 }
-.font-size-13{
+.font-size-13 {
   font-size: 13px;
 }
-
 </style>
