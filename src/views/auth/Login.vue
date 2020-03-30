@@ -12,14 +12,19 @@
           <label for="password">Parola:</label>
           <input type="password" name="password" v-model="password" autocomplete="off" />
         </div>
-        <p class="deep-purple-text feedback font-size-13" v-if="feedback">
+        <div class="field font-size-12 options">
+          <router-link :to="{name:'Signup'}" class="left">Kayıt Ol</router-link>
+          <router-link :to="{name:'ResetPassword'}" class="right">Parolanızı mı unuttunuz ?</router-link>
+        </div>
+
+        <div class="field deep-purple-text font-size-13" v-if="feedback">
           {{feedback}}
           <a
             class="verify-link"
             v-if="emailVerified===false"
             @click="verifyEmail()"
           >tıklayınız.</a>
-        </p>
+        </div>
         <div class="field center">
           <button class="btn deep-purple">Giriş Yap</button>
         </div>
@@ -63,23 +68,21 @@ export default {
                   this.createCurrentUserSession();
                   this.createNotificationSession();
                   this.$router.push({ name: "Home" });
-                }else{
-                  this.feedback="Giriş esnasında bir sorunla karşılaşıldı.Tekrar deneyiniz."
+                } else {
+                  this.feedback ="Giriş esnasında bir sorunla karşılaşıldı.Tekrar deneyiniz.";
                 }
               });
             } else {
               this.emailVerified = false;
-              this.feedback =
-                "Email adresiniz doğrulanmadı.Email adresinize tekrar doğrulama bağlantısı göndermek için";
+              this.feedback ="Email adresiniz doğrulanmamış görünüyor.Email adresinize tekrar doğrulama bağlantısı göndermek için";
             }
           })
           .catch(error => {
             if (error.code === "auth/wrong-password") {
               this.feedback = "Email adresi veya parola hatalı";
-            } else if(error.code==="auth/user-not-found"){
-              this.feedback="Kayıtlı böyle bir mail adresi bulunamadı."
-            }
-            else {
+            } else if (error.code === "auth/user-not-found") {
+              this.feedback = "Kayıtlı böyle bir mail adresi bulunamadı.";
+            } else {
               this.feedback = error.message;
             }
           });
@@ -98,8 +101,12 @@ export default {
       this.emailVerified = null;
       var user = firebase.auth().currentUser;
       var that = this;
+      var actionCodeSettings = {
+        url: "https://dortleme.firebaseapp.com/login",
+        handleCodeInApp: true
+      };
       user
-        .sendEmailVerification()
+        .sendEmailVerification(actionCodeSettings)
         .then(function() {
           that.feedback = "Email adresinize doğrulama bağlantısı gönderildi.";
         })
@@ -148,13 +155,19 @@ body {
 .login h2 {
   font-size: 2.4em;
 }
+.login .options {
+  margin-bottom: 64px !important;
+}
 .login .field {
   margin-bottom: 16px;
+}
+.font-size-12 {
+  font-size: 12px;
 }
 .font-size-13 {
   font-size: 13px;
 }
-.feedback >>> .verify-link {
+.verify-link {
   cursor: pointer;
 }
 </style>
