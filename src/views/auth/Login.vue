@@ -12,7 +12,14 @@
           <label for="password">Parola:</label>
           <input type="password" name="password" v-model="password" autocomplete="off" />
         </div>
-        <p class="deep-purple-text center" v-if="feedback">{{feedback}}</p>
+        <p class="deep-purple-text feedback font-size-13" v-if="feedback">
+          {{feedback}}
+          <a
+            class="verify-link"
+            v-if="emailVerified===false"
+            @click="verifyEmail()"
+          >tıklayınız.</a>
+        </p>
         <div class="field center">
           <button class="btn deep-purple">Giriş Yap</button>
         </div>
@@ -35,53 +42,97 @@ export default {
     return {
       email: null,
       password: null,
-      feedback: null
+      feedback: null,
+      emailVerified: null
     };
   },
-  
+  created() {},
   methods: {
     login() {
+      this.emailVerified = null;
       if (this.email && this.password) {
         this.feedback = null;
         firebase
           .auth()
           .signInWithEmailAndPassword(this.email, this.password)
           .then(() => {
-              this.getCurrentUser();
+            if (firebase.auth().currentUser.emailVerified) {
+              this.defineCurrentUserData().then(status => {
+                if (status) {
+                  this.UpdatedUserIsPlayStatus();
+                  this.createCurrentUserSession();
+                  this.createNotificationSession();
+                  this.$router.push({ name: "Home" });
+                }else{
+                  this.feedback="Giriş esnasında bir sorunla karşılaşıldı.Tekrar deneyiniz."
+                }
+              });
+            } else {
+              this.emailVerified = false;
+              this.feedback =
+                "Email adresiniz doğrulanmadı.Email adresinize tekrar doğrulama bağlantısı göndermek için";
+            }
           })
           .catch(error => {
-            if(error.code==="auth/wrong-password"){
-              this.feedback="Email adresi veya parola hatalı"
-            }else{
-              console.log(error)
-  this.feedback = error;
+            if (error.code === "auth/wrong-password") {
+              this.feedback = "Email adresi veya parola hatalı";
+            } else if(error.code==="auth/user-not-found"){
+              this.feedback="Kayıtlı böyle bir mail adresi bulunamadı."
+            }
+            else {
+              this.feedback = error.message;
             }
           });
       } else {
         this.feedback = "Lütfen tüm alanları doldurunuz!";
       }
     },
-    getCurrentUser() {
-      db.collection("users")
+    UpdatedUserIsPlayStatus() {
+      db.collection("game_users")
         .doc(this.email)
-        .get()
-        .then(doc => {
-          this.currentUser["id"] = doc.data().user_id;
-          this.currentUser["email"] = this.email;
-          this.currentUser["username"] = doc.data().username;
-        })
-        .then(() => {
-          this.createCurrentUserSession();
-          this.createNotificationSession()
-          this.$router.push({ name: "Home" });
+        .update({
+          is_play: false
         });
+    },
+    verifyEmail() {
+      this.emailVerified = null;
+      var user = firebase.auth().currentUser;
+      var that = this;
+      user
+        .sendEmailVerification()
+        .then(function() {
+          that.feedback = "Email adresinize doğrulama bağlantısı gönderildi.";
+        })
+        .catch(function(error) {
+          if (error.code === "auth/too-many-requests") {
+            that.feedback =
+              "Olağandışı etkinlik nedeniyle bu cihazdan gelen tüm istekleri engelledik. Daha sonra tekrar deneyin.";
+          } else {
+            that.feedback = error.message;
+          }
+          //  that.feedback ="Doğrulama bağlantısı gönderilme sırasında hata oluştu.Tekrar deneyiniz";
+        });
+    },
+    defineCurrentUserData() {
+      return new Promise((resolve, reject) => {
+        db.collection("users")
+          .doc(this.email)
+          .get()
+          .then(doc => {
+            this.currentUser["id"] = doc.data().user_id;
+            this.currentUser["email"] = this.email;
+            this.currentUser["username"] = doc.data().username;
+          })
+          .then(() => resolve(true))
+          .catch(() => reject(false));
+      });
     },
     createCurrentUserSession() {
       this.$session.set("user", this.currentUser);
     },
     createNotificationSession() {
       this.$session.set("notificationCount", 0);
-    },
+    }
   }
 };
 </script>
@@ -99,5 +150,11 @@ body {
 }
 .login .field {
   margin-bottom: 16px;
+}
+.font-size-13 {
+  font-size: 13px;
+}
+.feedback >>> .verify-link {
+  cursor: pointer;
 }
 </style>
