@@ -4,6 +4,7 @@ import Home from '../views/Home.vue'
 import Game from '../views/Game.vue'
 import Login from '../views/auth/Login.vue'
 import Signup from '../views/auth/Signup.vue'
+import ResetPassword from '../views/auth/ResetPassword.vue'
 import Notifications from '../views/Notifications.vue'
 import Ratings from '../views/Ratings.vue'
 import db from '@/firebase/init'
@@ -34,6 +35,11 @@ const routes = [{
         path: '/signup',
         name: 'Signup',
         component: Signup
+    },
+    {
+        path: '/reset-password',
+        name: 'ResetPassword',
+        component: ResetPassword
     },
     {
         path: '/notifications',
