@@ -3,37 +3,38 @@
     <Navbar />
     <div class="home container">
       <div class="card">
-        <a class="waves-effect waves-light btn-large" @click="dbreset">
-          <i class="material-icons left">all_out</i>game_users
-        </a>
+        <div  >
+          <a class="waves-effect waves-light btn-large" @click="dbreset">
+            <i class="material-icons left">all_out</i>game_users
+          </a>
 
-        <a class="waves-effect waves-light btn-large" @click="game_rooms">game_rooms</a>
-        <a class="waves-effect waves-light btn-large" @click="game_waits">game_Waits</a>
-        <a class="waves-effect waves-light btn-large" @click="resetnotification">notificationCount</a>
-        <a class="waves-effect waves-light btn-large" @click="requesetReset">
-          <i class="material-icons left">all_out</i>istek sifirla
-        </a>
+          <a class="waves-effect waves-light btn-large" @click="game_rooms">game_rooms</a>
+          <a class="waves-effect waves-light btn-large" @click="game_waits">game_Waits</a>
+          <a class="waves-effect waves-light btn-large" @click="resetnotification">notificationCount</a>
+          <a class="waves-effect waves-light btn-large" @click="requesetReset">
+            <i class="material-icons left">all_out</i>istek sifirla
+          </a>
+        </div>
 
-        <h3 class="heading center">Aktif Kullanıcılar</h3>
+        <h4 class="heading center deep-purple-text">Online Kullanıcılar</h4>
         <div class="row center">
           <div class="col s12 m8 offset-m2 xl6 offset-xl3">
             <div v-if="onlineUsers.length<1">
-              <div class="msg msg-error z-depth-2">
+              <div class="msg deep-purple white-text z-depth-2">
                 <p>Online kullanıcı bulunmamaktadır.</p>
               </div>
             </div>
-
             <div class="scale-transition" :class="scaleCSS" :style="msgContainerHeight">
               <div class="msg z-depth-2" :class="msgTypeCSS">
                 <p
-                  v-if="!istekGonderildiMi.status"
-                >{{ istekGonderildiMi.username }} kullanıcısına oyun isteği gönderildi</p>
-                <p v-else>{{ istekGonderildiMi.username }} kullanıcına zaten oyun isteği gönderildi</p>
+                  v-if="!gameRequest.status"
+                >{{ gameRequest.username }} kullanıcısına oyun isteği gönderildi</p>
+                <p v-else>{{ gameRequest.username }} kullanıcına zaten oyun isteği gönderildi</p>
               </div>
             </div>
 
             <ul class="collection">
-              <li class="collection-item" v-for="(user,index) in onlineUsers" :key="index">
+           <li class="collection-item" v-for="(user,index) in onlineUsers" :key="index">
                 <div v-if="!user.is_play" class="collection-item-user">
                   <div class="collection-user">
                     <div class="online-status"></div>
@@ -42,12 +43,12 @@
                   <button
                     :ref="user.username"
                     class="btn btn-game-request indigo accent-2"
-                    @click="oyunIstekGonder(user)"
+                    @click="sendGameRequest(user)"
                   >İstek Gönder</button>
                   <span
                     class="icon-game-request"
                     :ref="user.username"
-                    @click="oyunIstekGonder(user)"
+                    @click="sendGameRequest(user)"
                   >
                     <img src="../assets/img/right-arrow.png" />
                   </span>
@@ -79,35 +80,71 @@ export default {
   components: {
     Navbar
   },
+
   data() {
     return {
       onlineUsers: [],
-      rakipOyuncu: null,
       scaleCSS: "scale-out",
       msgTypeCSS: "msg-default",
       msgContainerHeight: "height:0",
-      gameRequests: [],
-      istekGonderildiMi: { status: false, username: null },
-      oyunNo: false,
+      gameRequest: { status: false, username: null },
       timeoutHandle: null
     };
   },
   created() {
-    window.addEventListener("beforeunload", event => {
-      // Cancel the event as stated by the standard.
-      event.preventDefault();
-      alert("kapatıldı");
-      // Chrome requires returnValue to be set.
-      //  event.returnValue = "";
-    });
-    this.$session.remove("oyunNo");
     this.currentUser = this.$session.get("user");
-    this.addGameUsers();
-    this.getOnlineUser();
+    this.addOnlineUser();
+    this.getOnlineUsers();
   },
 
   methods: {
-    oyunIstekGonder(user) {
+    getOnlineUsers() {
+      db.collection("game_users").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          let doc = change.doc;
+          var user = {
+            user_id: doc.data().user_id,
+            username: doc.data().username,
+            email: doc.id,
+            is_play: doc.data().is_play
+          };
+
+          if (change.type === "added") {
+            if (doc.data().user_id !== this.currentUser.id) {
+              let userIndex = this.getUserIndex(user.user_id);
+              if (!this.isThereUser(userIndex)) {
+                this.onlineUsers.push(user);
+              }
+            }
+          } else if (change.type === "modified") {
+            if (doc.data().user_id !== this.currentUser.id) {
+              this.deleteUserFromOnlineUsers(user.user_id);
+              let userIndex = this.getUserIndex(user.user_id);
+              if (!this.isThereUser(userIndex)) {
+                this.onlineUsers.push(user);
+              }
+            }
+          } else if (change.type === "removed") {
+            this.onlineUsers = this.onlineUsers.filter(element => {
+              return element.user_id != user.user_id;
+            });
+          }
+        });
+      });
+    },
+    addOnlineUser() {
+      let ref = db.collection("game_users").doc(this.currentUser.email);
+      ref.get().then(doc => {
+        if (!doc.exists) {
+          ref.set({
+            user_id: this.currentUser.id,
+            username: this.currentUser.username,
+            is_play: false
+          });
+        }
+      });
+    },
+    sendGameRequest(user) {
       window.clearTimeout(this.timeoutHandle);
       this.buttonRequestAddCSS(user);
 
@@ -118,7 +155,7 @@ export default {
         .get()
         .then(doc => {
           if (doc.docs.length > 0) {
-            this.istekGonderildiMi = { username: user.username, status: true };
+            this.gameRequest = { username: user.username, status: true };
           } else {
             db.collection("notifications").add({
               sender: this.currentUser.username,
@@ -126,14 +163,15 @@ export default {
               receiver: user.username,
               receiverEmail: user.email,
               statusCode: 0,
-              seenStatus: false
+              seenStatus: false,
+              timestamp: Date.now()
             });
-            this.istekGonderildiMi = { username: user.username, status: false };
+            this.gameRequest = { username: user.username, status: false };
           }
         })
         .then(() => {
           this.msgContainerHeight = "height:auto";
-          if (this.istekGonderildiMi.status) {
+          if (this.gameRequest.status) {
             this.msgTypeCSS = "msg-error";
           } else {
             this.msgTypeCSS = "msg-info";
@@ -153,22 +191,10 @@ export default {
       buttonRef.style.border = "1px solid rgb(83, 109, 254)";
       buttonRef.disabled = true;
     },
-    addGameUsers() {
-      let ref = db.collection("game_users").doc(this.currentUser.email);
-      ref.get().then(doc => {
-        if (!doc.exists) {
-          ref.set({
-            user_id: this.currentUser.id,
-            username: this.currentUser.username,
-            is_play: false
-          });
-        }
-      });
-    },
     getUserIndex(userId) {
       return this.onlineUsers.findIndex(user => user.user_id === userId);
     },
-    kullanicivarmi(userIndex) {
+    isThereUser(userIndex) {
       if (userIndex === -1) {
         return false;
       } else {
@@ -180,42 +206,6 @@ export default {
         return user.user_id !== userId;
       });
     },
-    getOnlineUser() {
-      db.collection("game_users").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          let doc = change.doc;
-          var user = {
-            user_id: doc.data().user_id,
-            username: doc.data().username,
-            email: doc.id,
-            is_play: doc.data().is_play
-          };
-          console.log(user.username)
-
-          if (change.type === "added") {
-            if (doc.data().user_id !== this.currentUser.id) {
-              let userIndex = this.getUserIndex(user.user_id);
-           
-              if (!this.kullanicivarmi(userIndex)) {
-                   console.log(userIndex) 
-                this.onlineUsers.push(user);
-              }
-            }
-          } else if (change.type === "modified") {
-            this.deleteUserFromOnlineUsers(user.user_id)
-            let userIndex = this.getUserIndex(user.user_id);
-            if (!this.kullanicivarmi(userIndex)) {
-              this.onlineUsers.push(user);
-            }
-          } else if (change.type === "removed") {
-            this.onlineUsers = this.onlineUsers.filter(element => {
-              return element.user_id != user.user_id;
-            });
-          }
-        });
-      });
-    },
-
     dbreset() {
       var jobskill_query = db.collection("game_users");
       jobskill_query.get().then(function(querySnapshot) {
@@ -253,97 +243,83 @@ export default {
       });
     }
   }
-};
+};  
 </script>
 
-<style lang="css" scoped>
-.home {
-  margin-top: 60px;
-}
+<style lang="css" scoped >
 .card {
-  padding: 1em;
+    padding: 1em;
 }
 .collection-item {
-  font-size: 1.5em;
-  display: flex !important;
-  align-items: center;
-}
-.online-status {
-  background: limegreen;
-  width: 0.5em;
-  height: 0.5em;
-  border-radius: 50%;
-  margin-right: 1em;
-}
-.offline-status {
-  background: crimson;
-  width: 0.5em;
-  height: 0.5em;
-  border-radius: 50%;
-  margin-right: 1em;
-}
-.fa-dice-two {
-  margin-right: 8px;
-  font-size: 3em;
-}
-.btn-game-request {
-  font-size: 0.5em;
-}
-.icon-game-request {
-  display: none;
-  cursor: pointer;
-}
-.icon-game-request img {
-  width: 32px;
-  height: 32px;
-}
-.collection-item-user {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-.collection-user {
-  display: flex;
-  align-items: center;
-}
-.collection-user .user-score {
-  font-size: 15px;
-  margin-left: 1em;
-  border-radius: 50%;
-  padding: 6px 3px;
-  font-weight: bold;
+    font-size: 1.5em;
+    display: flex !important;
+    align-items: center;
 }
 
-.msg {
-  width: 100%;
-  border: 1px solid;
-  padding: 10px;
-  color: grey;
+.online-status {
+    background: limegreen;
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    margin-right: 1em;
 }
-.msg-error {
-  border-color: #d32f2f;
-  background-color: #ef5350;
-  color: white;
+
+.offline-status {
+    background: crimson;
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    margin-right: 1em;
 }
-.msg-alert {
-  border-color: #ef6c00;
-  background-color: #ff9800;
-  color: white;
+
+.fa-dice-two {
+    margin-right: 8px;
+    font-size: 3em;
 }
-.msg-info {
-  border-color: #0288d1;
-  background-color: #29b6f6;
-  color: white;
+
+.btn-game-request {
+    font-size: 0.5em;
+    width: auto!important;
 }
-@media (max-width: 500px) {
-  .btn-game-request {
+.icon-game-request {
     display: none;
-  }
-  .icon-game-request {
-    display: block;
-  }
-  .collection-user {
-    font-size: 0.75em;
-  }
+    cursor: pointer;
 }
+
+.icon-game-request img {
+    width: 32px;
+    height: 32px;
+}
+
+.collection-item-user {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.collection-user {
+    display: flex;
+    align-items: center;
+}
+
+.collection-user .user-score {
+    font-size: 15px;
+    margin-left: 1em;
+    border-radius: 50%;
+    padding: 6px 3px;
+    font-weight: bold;
+}
+
+@media (max-width: 500px) {
+    .btn-game-request {
+        display: none;
+    }
+    .icon-game-request {
+        display: block;
+    }
+    .collection-user {
+        font-size: 0.75em;
+    }
+}
+@import "../assets/css/all.css";
 </style>

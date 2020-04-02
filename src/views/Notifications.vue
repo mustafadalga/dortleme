@@ -1,16 +1,11 @@
   <template>
   <div id="notifications">
     <Navbar />
-    <div class="home container">
+    <div class="notifications container">
       <div class="card">
-        <div class="row">
-          <div class="col s12">
-            <div
-              class="msg msg-info z-depth-2 scale-transition center"
-              v-if="notifications.length<1"
-            >
+        <div class="row"  v-if="notifications.length<1" >
+          <div class="col s12 deep-purple white-text z-depth-2 scale-transition center p1" >
               <p>Bildirim bulunmamaktadır</p>
-            </div>
           </div>
         </div>
 
@@ -56,11 +51,11 @@
 
                   <p>
                     <button
-                      @click="istekKabulEt(notification)"
+                      @click="acceptRequest(notification)"
                       class="button-confirm deep-purple white-text"
                     >Kabul Et</button>
                     <button
-                      @click="istekReddet(notification)"
+                      @click="rejectRequest(notification)"
                       class="button-confirm red white-text"
                     >Reddet</button>
                   </p>
@@ -122,7 +117,8 @@ export default {
     return {
       acceptedRequests: [],
       rejectedRequests: [],
-      notifications: []
+      notifications: [],
+      gameNo:null
     };
   },
   computed: {
@@ -133,13 +129,6 @@ export default {
     }
   },
   created() {
-    window.addEventListener("beforeunload", event => {
-      // Cancel the event as stated by the standard.
-      event.preventDefault();
-      alert("kapatıldı");
-      // Chrome requires returnValue to be set.
-      //  event.returnValue = "";
-    });
     this.currentUser = this.$session.get("user");
     this.getNotifications();
   },
@@ -181,7 +170,7 @@ export default {
       time = time.replace("year", "yıl");
       return time;
     },
-    istekKabulEt(user) {
+    acceptRequest(user) {
       db.collection("notifications").add({
         sender: this.currentUser.username,
         senderEmail: this.currentUser.email,
@@ -193,7 +182,7 @@ export default {
       });
       this.acceptedRequests.push(user);
     },
-    istekReddet(user) {
+    rejectRequest(user) {
       db.collection("notifications").add({
         sender: this.currentUser.username,
         senderEmail: this.currentUser.email,
@@ -203,7 +192,6 @@ export default {
         seenStatus: false,
         timestamp: Date.now()
       });
-      console.log(user);
       this.rejectedRequests.push(user);
       this.deleteRejectedRequest(user);
     },
@@ -248,32 +236,32 @@ export default {
         .then(docs => {
           docs.forEach(doc => {
             let room = doc.data();
-            let oyuncular = room.oyuncular;
+            let players = room.players;
             if (
-              oyuncular.includes(this.currentUser.email) &&
-              oyuncular.includes(user.senderEmail)
+              players.includes(this.currentUser.email) &&
+              players.includes(user.senderEmail)
             ) {
-              this.oyunSessionTanimla(opponent, room.oyunNo);
+              this.defineGameSession(opponent, room.gameNo);
             }
           });
         })
         .then(() => {
-          if (this.oyunTanimliMi()) {
-            this.oyuncuKadroTamamla();
-            this.bildirimSil();
+          if (this.isGameDefined()) {
+            this.playersCompletionStatus();
+            this.deleteNotifications();
           } else {
-            this.oyunOdasiOlustur(opponent);
-            this.oyunSessionTanimla(opponent, this.oyunNo);
-            this.rakipOyuncuBeklemeSuresiOlustur();
-            this.oyunaYonlendir();
+            this.createGameRoom(opponent);
+            this.defineGameSession(opponent, this.gameNo);
+            this.createOpponentWaitStopWatch();
+            this.redirectToGame();
           }
         });
     },
-    bildirimSil() {
-      let rakip = this.$session.get("rakipOyuncu");
+    deleteNotifications() {
+      let opponent = this.$session.get("opponentUser");
       db.collection("notifications")
         .where("receiverEmail", "==", this.currentUser.email)
-        .where("senderEmail", "==", rakip.email)
+        .where("senderEmail", "==", opponent.email)
         .get()
         .then(notifications => {
           notifications.forEach(notification => {
@@ -284,7 +272,7 @@ export default {
         })
         .then(() => {
           db.collection("notifications")
-            .where("receiverEmail", "==", rakip.email)
+            .where("receiverEmail", "==", opponent.email)
             .where("senderEmail", "==", this.currentUser.email)
             .get()
             .then(notifications => {
@@ -296,161 +284,141 @@ export default {
             });
         })
         .then(() => {
-          this.oyunaYonlendir();
+          this.redirectToGame();
         });
     },
-    oyunTanimliMi() {
-      if (this.$session.exists("oyunNo")) {
+    isGameDefined() {
+      if (this.$session.exists("gameNo")) {
         return true;
       } else {
         return false;
       }
     },
-    oyuncuKadroTamamla() {
+    playersCompletionStatus() {
+      console.log(this.game)
       db.collection("game_rooms")
-        .doc(this.oyunNo)
+        .doc(this.gameNo)
         .update({
-          oyuncuKadroTamamMi: true
+          isPlayersCompleted: true
         });
     },
-    oyunSessionTanimla(opponent, oyunNo) {
-      this.$session.set("rakipOyuncu", opponent);
-      this.$session.set("oyunNo", oyunNo);
-      this.oyunNo = oyunNo;
+    defineGameSession(opponent, gameNo) {
+      this.$session.set("opponentUser", opponent);
+      this.$session.set("gameNo", gameNo);
+      this.gameNo = gameNo;
     },
-    oyunaYonlendir() {
+    redirectToGame() {
       this.$router.push({ name: "Game" });
     },
-    rakipOyuncuBeklemeSuresiOlustur() {
-      let rakip = this.$session.get("rakipOyuncu");
-      let simdikiZaman = new Date();
-      let beklemeSuresi = 60 * 1000;
-      let bitisTarih = new Date(simdikiZaman.getTime() + beklemeSuresi);
+    createOpponentWaitStopWatch() {
+      let opponent = this.$session.get("opponentUser");
+      let now = new Date();
+      let waitingTime = 60 * 1000;
+      let due = new Date(now.getTime() + waitingTime);
       db.collection("game_waits").add({
-        oyunNo: this.oyunNo,
-        expectedPlayer: rakip.email,
+        gameNo: this.gameNo,
+        expectedPlayer: opponent.email,
         waitingPlayer: this.currentUser.email,
-        simdikiZaman: simdikiZaman,
-        bitisTarih: bitisTarih
+        now: now,
+        due: due
       });
     },
-    oyunOdasiOlustur(opponent) {
-      this.oyunNo = Date.now().toString();
+    createGameRoom(opponent) {
+      this.gameNo = Date.now().toString();
       let currentEmail = this.currentUser.email;
-      let ref = db.collection("game_rooms").doc(this.oyunNo);
+      let ref = db.collection("game_rooms").doc(this.gameNo);
       ref.get().then(doc => {
         if (!doc.exists) {
           ref.set({
-            oyunNo: this.oyunNo,
-            oyuncular: [currentEmail, opponent.email],
-            oyunuBaslatanEmail: currentEmail,
-            hamleSirasi: currentEmail,
-            kazananOyuncu: null,
-            oyuncuKadroTamamMi: false,
-            oyunDurumNo: 0
+            gameNo: this.gameNo,
+            players: [currentEmail, opponent.email],
+            whichPlayerStart: currentEmail,
+            moveOrder: currentEmail,
+            winnerPlayer: null,
+            isPlayersCompleted: false,
+            gameStatusNo: 0
           });
         } else {
-          this.oyunOdasiOlustur(opponent);
+          this.createGameRoom(opponent);
         }
       });
     }
   }
 };
 </script>
-
 <style lang="css" scoped>
-:root {
-  background: #fff !important;
-}
-
-.home {
-  margin-top: 60px;
-}
 .card {
-  padding: 1em;
-}
-.collection-item {
-  font-size: 1.5em;
-  display: flex !important;
-  align-items: center;
-}
-.online-status {
-  background: limegreen;
-  width: 0.5em;
-  height: 0.5em;
-  border-radius: 50%;
-  margin-right: 1em;
-}
-.fa-dice-two {
-  margin-right: 8px;
-  font-size: 3em;
-}
-.btn {
-  display: flex;
-  width: 8em;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  margin-right: auto;
-  margin-bottom: 1em;
-}
-.msg {
-  width: 100%;
-  border: 1px solid;
-  padding: 10px;
-  color: grey;
-}
-.msg-error {
-  border-color: #d32f2f;
-  background-color: #ef5350;
-  color: white;
-}
-.msg-alert {
-  border-color: #ef6c00;
-  background-color: #ff9800;
-  color: white;
+    padding: 1em;
 }
 
-.msg-info {
-  border-color: #0288d1;
-  background-color: #29b6f6;
-  color: white;
+.collection-item {
+    font-size: 1.5em;
+    display: flex !important;
+    align-items: center;
+}
+
+.online-status {
+    background: limegreen;
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    margin-right: 1em;
+}
+
+.fa-dice-two {
+    margin-right: 8px;
+    font-size: 3em;
+}
+
+.btn {
+    display: flex;
+    width: 8em;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 1em;
 }
 
 .notification-icon {
-  margin-right: 1em;
+    margin-right: 1em;
 }
+
 .notification-datetime {
-  position: absolute;
-  right: 1em;
-  bottom: 0.5em;
-  font-size: 13px;
+    position: absolute;
+    right: 1em;
+    bottom: 0.5em;
+    font-size: 13px;
 }
+
 .notification-text {
-  margin-bottom: 1em;
-  font-size: 14px;
+    margin-bottom: 1em;
+    font-size: 14px;
 }
+
 .collection-item {
-  position: relative;
+    position: relative;
 }
+
 .collection-item-flex {
-  display: flex;
-  align-items: center;
+    display: flex;
+    align-items: center;
 }
 .button-confirm {
-  padding: 0.5em;
-  cursor: pointer;
-  -webkit-box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
-  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
-  outline: none;
-  border: none;
-  margin-left: 1em;
-  margin-bottom: 1em;
-  font-size: 14px;
+    padding: 0.5em;
+    cursor: pointer;
+    -webkit-box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
+    outline: none;
+    border: none;
+    margin-left: 1em;
+    margin-bottom: 1em;
+    font-size: 14px;
 }
 .notify-link {
-  cursor: pointer;
+    cursor: pointer;
 }
+.p1 {
+    padding: 1em!important;
+} 
 </style>

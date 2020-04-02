@@ -1,29 +1,28 @@
   <template>
-  <div id="notifications">
+  <div id="ratings">
     <Navbar />
     <div class="ratings container">
       <div class="card">
-<h2 class="center deep-purple-text" style="padding:.5em">Ratings</h2>
-     
-           
-      <ul class="collection">
-        <li class="collection-item row font-bold">
-          <div class="collection-number col s2 m1">Sıralama</div>
-          <div class="collection-username col s7 m4 offset-m1">
-            <span>Kullanıcı</span>
-          </div>
-          <div class="collection-rating col s3 m1 offset-m1">Puan</div>
-        </li>
-        <li class="collection-item row" v-for="(score,index) in sortedScores" :key="index">
-          <div class="collection-number col s2 m1 font-bold" >{{ index+1 }}</div>
-          <div class="collection-username col s7 m4 offset-m1">
-            <span>{{ score.username }}</span>
-          </div>
-          <div class="collection-rating col s3 m1 offset-m1">{{ score.score }}</div>
-        </li>
-      </ul>
+        <h4 class="heading center deep-purple-text">Ratings</h4>
+
+        <ul class="collection">
+          <li class="collection-item row font-bold">
+            <div class="collection-number col s2 m1">Sıralama</div>
+            <div class="collection-username col s7 m4 offset-m1">
+              <span>Kullanıcı</span>
+            </div>
+            <div class="collection-rating col s3 m1 offset-m1">Puan</div>
+          </li>
+          <li class="collection-item row" v-for="(score,index) in sortedScores" :key="index">
+            <div class="collection-number col s2 m1 font-bold">{{ index+1 }}</div>
+            <div class="collection-username col s7 m4 offset-m1">
+              <span>{{ score.username }}</span>
+            </div>
+            <div class="collection-rating col s3 m1 offset-m1">{{ score.score }}</div>
+          </li>
+        </ul>
+      </div>
     </div>
-     </div>
   </div>
 </template>
 
@@ -57,7 +56,6 @@ export default {
     }
   },
   methods: {
-  
     getUsersScore() {
       db.collection("scores").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
@@ -87,6 +85,9 @@ export default {
 </script>
 
 <style lang="css" scoped>
+.card {
+    padding: 1em;
+}
 .collection-item {
   display: flex;
   align-items: center;

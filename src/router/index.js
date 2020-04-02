@@ -73,12 +73,12 @@ router.beforeEach((to, from, next) => {
 
 
             if (to.name == "Game") {
-                let oyunNo = Vue.prototype.$session.get('oyunNo');
+                let gameNo = Vue.prototype.$session.get('gameNo');
 
-                if (oyunNo) {
-                    let ref = db.collection("game_rooms").doc(oyunNo);
+                if (gameNo) {
+                    let ref = db.collection("game_rooms").doc(gameNo);
                     ref.get().then(doc => {
-                        if (doc.id == oyunNo) {
+                        if (doc.id == gameNo) {
                             next()
                         } else {
                             //console.log("Geçersiz oyun odası!")

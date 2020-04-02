@@ -20,7 +20,7 @@
           </router-link>
         </li>
         <li v-if="currentUser && $route.name=='Game'">
-          <a @click="oyunCikis">
+          <a @click="exitGame">
             <font-awesome-icon :icon="['fas', 'times-circle']" class="font-awesome-size" />
           
           </a>
@@ -28,8 +28,6 @@
         <li v-if="currentUser && $route.name!=='Game'" class="rating-logo" >
           <router-link
             :to="{name:'Ratings'}"
-            style="position:relative;"
-            @click.native="bildirimSifirla"
           >
             <img src="../assets/img/rating.png" />
           </router-link>
@@ -38,7 +36,7 @@
           <router-link
             :to="{name:'Notifications'}"
             style="position:relative;"
-            @click.native="bildirimSifirla"
+            @click.native="clearNotifications"
           >
             <font-awesome-icon
               :icon="['fas', 'bell']"
@@ -89,23 +87,21 @@ export default {
   data() {
     return {
       isAnimateAdded: false,
-      oyunNo: null
+      gameNo: null
     };
   },
   created() {
     this.currentUser = this.$session.get("user");
-
     if (this.currentUser) {
-      if (this.$session.exists("oyunNo")) {
-        this.oyunNo = this.$session.get("oyunNo");
+      if (this.$session.exists("gameNo")) {
+        this.gameNo = this.$session.get("gameNo");
       }
-
       if (this.$route.name === "Notifications") {
         this.updateNotificationsSeenStatus();
       } else {
         this.notificationCount = this.$session.get("notificationCount");
         if (this.$session.get("isNotificationReset")) {
-          this.bildirimSifirlamaDurumDegistir();
+          this.updateNotificationsStatus();
         }
         this.getNotifications();
         this.deleteRejectedRequest()
@@ -113,17 +109,14 @@ export default {
     }
   },
   methods: {
-    bildirimSifirla() {
-      console.log("bildirim sıfırlandı");
-
+    clearNotifications() {
       this.$session.set("notificationCount", 0);
       this.notificationCount = this.$session.get("notificationCount");
-      console.log(this.notificationCount);
     },
-    bildirimSifirlamaDurumDegistir() {
+    updateNotificationsStatus() {
       this.$session.set("isNotificationReset", false);
       this.notificationIdList = [];
-      this.bildirimSifirla();
+      this.clearNotifications();
     },
     addNotification(id) {
       let notificationIndex = this.notificationIdList.findIndex(
@@ -132,15 +125,10 @@ export default {
         }
       );
       if (notificationIndex === -1) {
-        console.log("Eklendi");
         this.notificationIdList.push(id);
-      } else {
-        console.log("eklendmedi:" + id);
-      }
+      } 
       this.$session.set("notificationCount", this.notificationIdList.length);
       this.notificationCount = this.$session.get("notificationCount");
-      console.log(this.notificationIdList);
-      console.log(this.notificationCount);
     },
     createNotificationAnimation() {
       this.isAnimateAdded = true;
@@ -164,9 +152,7 @@ export default {
         .then(() => {
           this.$session.set("notificationCount", 0);
           this.notificationIdList = [];
-          console.log(this.$session.get("notificationCount"));
           this.getNotifications();
-          console.log(this.$session.get("notificationCount"));
         });
     },
     deleteRejectedRequest() {
@@ -204,20 +190,20 @@ export default {
         .auth()
         .signOut()
         .then(() => {
-          this.onlineKullaniciSil();
-          this.sessionSifirla();
+          this.deleteOnlineUser();
+          this.clearSession();
           this.$router.push({ name: "Login" });
         });
     },
-    oyunCikis() {
+    exitGame() {
       this.$emit("openExitGameConfirmModal");
     },
-    onlineKullaniciSil() {
+    deleteOnlineUser() {
       db.collection("game_users")
         .doc(this.currentUser.email)
         .delete();
     },
-    sessionSifirla() {
+    clearSession() {
       this.$session.clear();
     }
   }

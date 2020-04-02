@@ -9,18 +9,18 @@
       tabindex="0"
     >
       <div class="modal-content">
-        <h4 class="center" v-if="oyunDurumNo===5">
+        <h4 class="center" v-if="gameStatusNo===5">
           <font-awesome-icon :icon="['fas', 'trophy']" class="font-awesome-size teal-text" />
         </h4>
 
-        <div class="row" v-if="oyunDurumNo!==7">
+        <div class="row" v-if="gameStatusNo!==7">
           <div class="col s12 m6 offset-m3">
             <div class="card teal darken-1">
               <div class="card-content white-text center">
-                <span class="card-title">Oyun Bitti {{ oyunDurumNo }}</span>
+                <span class="card-title">Oyun Bitti</span>
                 <p>{{ description }}</p>
-                <p v-if="oyunDurumNo===6">Oyun berabere kaldı.</p>
-                <p v-else>Kazanan Oyuncu: {{kazananOyuncu == currentUser.email ? currentUser.username : rakip.username }}</p>
+                <p v-if="gameStatusNo===6">Oyun berabere kaldı.</p>
+                <p v-else>Kazanan Oyuncu: {{winnerPlayer == currentUser.email ? currentUser.username : opponent.username }}</p>
               </div>
               <hr />
               <div class="card-content white-text center modal-skor-durum">
@@ -30,15 +30,15 @@
                     <p>
                       <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
                     </p>
-                    <p>{{ kazananOyuncu ? (kazananOyuncu == currentUser.email ? currentUser.username : rakip.username) : currentUser.username }}</p>
-                    <p>{{kazananOyuncu ? (kazananOyuncu == currentUser.email ? currentUserSkor : rakipSkor) :currentUserSkor }}</p>
+                    <p>{{ winnerPlayer ? (winnerPlayer == currentUser.email ? currentUser.username : opponent.username) : currentUser.username }}</p>
+                    <p>{{winnerPlayer ? (winnerPlayer == currentUser.email ? currentUserSkor : opponentScore) :currentUserSkor }}</p>
                   </div>
                   <div class="col s12 m6">
                     <p>
                       <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
                     </p>
-                    <p>{{ kazananOyuncu ? (kazananOyuncu == currentUser.email ? rakip.username : currentUser.username) : rakip.username }}</p>
-                    <p>{{ kazananOyuncu ? (kazananOyuncu == currentUser.email ? rakipSkor : currentUserSkor) : rakipSkor }}</p>
+                    <p>{{ winnerPlayer ? (winnerPlayer == currentUser.email ? opponent.username : currentUser.username) : opponent.username }}</p>
+                    <p>{{ winnerPlayer ? (winnerPlayer == currentUser.email ? opponentScore : currentUserSkor) : opponentScore }}</p>
                   </div>
                 </div>
               </div>
@@ -50,7 +50,7 @@
             <div class="card teal darken-1">
               <div class="card-content white-text center">
                 <span class="card-title">Oyun Bitti</span>
-                <p>{{ rakip.username+" oyundan çıkış yaptı." }}</p>
+                <p>{{ opponent.username+" oyundan çıkış yaptı." }}</p>
               </div>
             </div>
           </div>
@@ -58,11 +58,11 @@
       </div>
       <div class="modal-footer">
         <button
-          v-if="oyunDurumNo===5 || oyunDurumNo===6"
+          v-if="gameStatusNo===5 || gameStatusNo===6"
           class="btn purple darken-3 waves-green"
-          @click="yeniOyun"
+          @click="newGame"
         >Yeni Oyun</button>
-        <button class="btn red btn-red" @click="oyundanCik">Oyundan Çık</button>
+        <button class="btn red btn-red" @click="exitGame">Oyundan Çık</button>
       </div>
     </div>
     <div
@@ -80,43 +80,41 @@ library.add(faTrophy, faUser);
 
 export default {
   name: "GameOverModal",
-  props: ["kazananOyuncu", "currentUserSkor", "rakipSkor", "oyunDurumNo"],
+  props: ["winnerPlayer", "currentUserSkor", "opponentScore", "gameStatusNo"],
   data() {
     return {
       animatedCSS: true,
-      rakip: null,
-      kaybedenOyuncuIndex: null,
-      kazananOyuncuIndex: null,
+      opponent: null,
       description: null
     };
   },
   created() {
     this.currentUser = this.$session.get("user");
-    this.rakip = this.$session.get("rakipOyuncu");
-    if (this.oyunDurumNo === 3) {
+    this.opponent = this.$session.get("opponentUser");
+    if (this.gameStatusNo === 3) {
       this.description =
         "Rakip oyuncu " +
-        this.rakip.username +
+        this.opponent.username +
         " oyundan çıkış yaptığın için hükmen mağlup oldu.";
-    } else if (this.oyunDurumNo === 4) {
+    } else if (this.gameStatusNo === 4) {
       this.description =
         "1 dakikalık bekleme süresi sonucunda rakip oyuncu " +
-        this.rakip.username +
+        this.opponent.username +
         " oyuna giriş yapmadığından dolayı hükmen mağlup oldu";
     }
      
   },
   methods: {
-    yeniOyun() {
+    newGame() {
       this.animatedCSS = false;
       setTimeout(() => {
-        this.$emit("yeniOyun");
+        this.$emit("newGame");
       }, 500);
     },
-    oyundanCik() {
+    exitGame() {
       this.animatedCSS = false;
       setTimeout(() => {
-        this.$emit("oyunCikis");
+        this.$emit("exitGame");
       }, 500);
     }
   }

@@ -1,39 +1,36 @@
 <template>
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
-    <button @click="dbreset">Sıfırla</button>
-    <button @click="notificationAlert('error','ddd','ddd')">TEST</button>
     <div class="container center">
-
       <div class="row">
         <div class="col s6 m3">
           <div
             class="z-depth-1 white-text bg-red card-red-team"
-            :class="hamleSirasi==baslayanOyuncu ? 'aktif-takim-border' : ''"
+            :class="moveOrder==startingPlayer ? 'aktif-takim-border' : ''"
           >
             <font-awesome-icon :icon="['fas', 'user']" />
             <span
               class="player-name"
-            >{{ baslayanOyuncu==currentUser.email ? currentUser.username : rakip.username }}</span>
+            >{{ startingPlayer==currentUser.email ? currentUser.username : opponent.username }}</span>
 
             <span
               class="btn-floating waves-effect waves-light skor skor-bg-red"
-            >{{ baslayanOyuncu==currentUser.email ? currentUserSkor : rakipSkor }}</span>
+            >{{ startingPlayer==currentUser.email ? currentUserSkor : opponentScore }}</span>
           </div>
         </div>
 
         <div class="col s6 m3 offset-m6">
           <div
             class="z-depth-1 white-text bg-green card-green-team"
-            :class="hamleSirasi!=baslayanOyuncu ? 'aktif-takim-border' : ''"
+            :class="moveOrder!=startingPlayer ? 'aktif-takim-border' : ''"
           >
             <font-awesome-icon :icon="['fas', 'user']" />
             <span
               class="player-name"
-            >{{ baslayanOyuncu==currentUser.email ? rakip.username : currentUser.username }}</span>
+            >{{ startingPlayer==currentUser.email ? opponent.username : currentUser.username }}</span>
             <span
               class="btn-floating waves-effect waves-light bg-green skor"
-            >{{ baslayanOyuncu==currentUser.email ? rakipSkor: currentUserSkor }}</span>
+            >{{ startingPlayer==currentUser.email ? opponentScore: currentUserSkor }}</span>
           </div>
         </div>
       </div>
@@ -43,7 +40,7 @@
       <div class="dortleme">
         <div v-for="row in 6" :key="row" class="row-container">
           <div v-for="col in 8" :key="col" :style="zIndexStyle ? 'z-index:-2' : null">
-            <div @click="hamle" :class="renkYerlestir(row,col)" class="hucre" :row="row" :col="col"></div>
+            <div @click="makeMove" :class="setColor(row,col)" class="hucre" :row="row" :col="col"></div>
           </div>
         </div>
       </div>
@@ -52,8 +49,8 @@
     <div class="alert-bottom-container">
       <div class="alert-bottom scale-transition" :class="gameStartScaleCSS">
         <div class="msg msg-info z-depth-2" v-if="isOpenGameStartCountDownAlert">
-          <span v-if="!oyunBeklemeSuresiDolduMu">Rakip oyuncu bekleniliyor...</span>
-          <span>{{ gameStartCountDown>0 && !oyunBeklemeSuresiDolduMu ? ("00:"+(gameStartCountDown>9 ? gameStartCountDown : "0"+gameStartCountDown)) : gameStartCountDown==null ? "": "Süre Doldu!" }}</span>
+          <span v-if="!isOpponentStopwatchExpired">Rakip oyuncu bekleniliyor...</span>
+          <span>{{ gameStartCountDown>0 && !isOpponentStopwatchExpired ? ("00:"+(gameStartCountDown>9 ? gameStartCountDown : "0"+gameStartCountDown)) : gameStartCountDown==null ? "": "Süre Doldu!" }}</span>
         </div>
       </div>
     </div>
@@ -62,32 +59,32 @@
       <div class="alert-bottom scale-transition" :class="moveScaleCSS">
         <div class="msg msg-info z-depth-2" v-if="isOpenMoveCountDownAlert">
           <span
-            v-if="!hamleBeklemeSuresiDolduMu"
+            v-if="!isMoveStopwatchExpired"
           >{{ moveCountDown>0 ? "Hamle yapmak için kalan süre:"+("00:"+(moveCountDown>9 ? moveCountDown : "0"+moveCountDown)) : "Süre Doldu!"}}</span>
           <span
             v-else
-          >Hamle sırası gelen oyuncu:{{ hamleSirasi==currentUser.email ? currentUser.username : rakip.username }}</span>
+          >Hamle sırası gelen oyuncu:{{ moveOrder==currentUser.email ? currentUser.username : opponent.username }}</span>
         </div>
       </div>
     </div>
 
     <notifications position="top right" group="alert" />
 
-    <div v-if="oyunDurumNo===1 || oyunDurumNo===2">
+    <div v-if="gameStatusNo===1 || gameStatusNo===2">
       <ExitGameConfirmModal
-        @oyunCikis="oyunCikis"
-        :oyunDurumNo="oyunDurumNo"
+        @exitGame="exitGame"
+        :gameStatusNo="gameStatusNo"
         @modalClose="modalClose"
       />
     </div>
-    <div v-else-if="oyunDurumNo>2 && oyunDurumNo<8">
+    <div v-else-if="gameStatusNo>2 && gameStatusNo<8">
       <GameOverModal
-        @yeniOyun="yeniOyun"
-        @oyunCikis="oyunCikis"
-        :kazananOyuncu="kazananOyuncu"
+        @newGame="newGame"
+        @exitGame="exitGame"
+        :winnerPlayer="winnerPlayer"
         :currentUserSkor="currentUserSkor"
-        :rakipSkor="rakipSkor"
-        :oyunDurumNo="oyunDurumNo"
+        :opponentScore="opponentScore"
+        :gameStatusNo="gameStatusNo"
       />
     </div>
   </div>
@@ -103,7 +100,7 @@ import db from "@/firebase/init";
 import Navbar from "@/components/Navbar";
 import GameOverModal from "@/components/GameOverModal";
 import ExitGameConfirmModal from "@/components/ExitGameConfirmModal";
-import HamleSoundFile from "@/assets/sound/hamle.mp3";
+import MovementSoundFile from "@/assets/sound/movement.mp3";
 import WinnerSoundFile from "@/assets/sound/winner.mp3";
 
 export default {
@@ -115,51 +112,51 @@ export default {
   },
   data() {
     return {
-      aktifTakim: null,
-      takimNo: null,
-      hamleler: [],
-      yesilHamleSayisi: 0,
-      kirmiziHamleSayisi: 0,
+      activePlayer: null,
+      playerNo: null,
+      movements: [],
+      greenMoveCount: 0,
+      redMoveCount: 0,
       row: null,
       col: null,
-      renk: null,
-      rakip: null,
-      oyunNo: null,
+      color: null,
+      opponent: null,
+      gameNo: null,
       gameStartScaleCSS: "scale-out",
       moveScaleCSS: "scale-out",
-      baslayanOyuncu: null,
-      hamleSirasi: null,
-      kazananOyuncu: null,
-      rakipSkor: null,
+      startingPlayer: null,
+      moveOrder: null,
+      winnerPlayer: null,
+      opponentScore: null,
       currentUserSkor: null,
       isOpenGameStartCountDownAlert: true,
       isOpenMoveCountDownAlert: false,
-      oyuncuKadroTamamMi: false,
-      oyunBittiMi: false,
+      isPlayersCompleted: false,
+      isGameOver: false,
       timeoutHandleGameStart: null,
       timeoutHandleMove: null,
       gameStartCountDown: null,
       moveCountDown: null,
-      oyunDurumNo: null,
-      oyunBeklemeSuresiDolduMu: false,
-      hamleBeklemeSuresiDolduMu: false,
+      gameStatusNo: null,
+      isOpponentStopwatchExpired: false,
+      isMoveStopwatchExpired: false,
       zIndexStyle: false,
-      dortluKonumlar: []
+      quadPositions: []
     };
   },
   created() {
     this.currentUser = this.$session.get("user");
-    this.rakip = this.$session.get("rakipOyuncu");
-    this.oyunNo = this.$session.get("oyunNo");
+    this.opponent = this.$session.get("opponentUser");
+    this.gameNo = this.$session.get("gameNo");
     this.updatePlayersPlayingStatus(true);
     this.whichPlayerStart();
-    this.hamlelerListele();
-    this.kazananOyuncuGetir();
-    this.skorGetir();
-    this.oyuncuKadroTamamlandiMi();
-    this.rakipOyuncuBeklemeSuresiGoster();
-    this.hamleBeklemeSuresiGoster();
-    this.oyunOdasiVarmi()
+    this.getMovesList();
+    this.getWinnerPlayer();
+    this.getScore();
+    this.checkPlayersCompletionStatus();
+    this.showOpponentWaitStopWatch();
+    this.showMovementWaitStopWatch();
+    this.checkGameRoom()
   },
   methods: {
     updatePlayersPlayingStatus(status) {
@@ -168,51 +165,44 @@ export default {
         is_play: status
       });
     },
-    hamleSoundEfeck() {
-      var snd = new Audio(HamleSoundFile);
-      snd.play();
+    movementSoundEffect() {
+      var sound = new Audio(MovementSoundFile);
+      sound.play();
     },
-    WinnerSoundEfeck() {
-      var snd = new Audio(WinnerSoundFile);
-      snd.play();
+    winnerSoundEffect() {
+      var sound = new Audio(WinnerSoundFile);
+      sound.play();
     },
 
-    hamleBeklemeSuresiOlustur() {
+    createMovementWaitStopWatch() {
       return new Promise((resolve, reject) => {
         db.collection("game_waits")
-          .where("oyunNo", "==", this.oyunNo)
-          .where("hamleYapanOyuncu", "in", [
+          .where("gameNo", "==", this.gameNo)
+          .where("movingPlayer", "in", [
             this.currentUser.email,
-            this.rakip.email
+            this.opponent.email
           ])
           .get()
           .then(querySnapshot => {
             if (querySnapshot.size === 0) {
-              //       this.hamleBeklemeSuresiDolduMu = false;
-              let simdikiZaman = new Date();
-              let beklemeSuresi = 60 * 1000;
-              let bitisTarih = new Date(simdikiZaman.getTime() + beklemeSuresi);
+              //       this.isMoveStopwatchExpired = false;
+              let now = new Date();
+              let waitingTime = 60 * 1000;
+              let due = new Date(now.getTime() + waitingTime);
               db.collection("game_waits")
                 .add({
-                  oyunNo: this.oyunNo,
-                  hamleYapanOyuncu: this.currentUser.email,
-                  simdikiZaman: simdikiZaman,
-                  bitisTarih: bitisTarih
+                  gameNo: this.gameNo,
+                  movingPlayer: this.currentUser.email,
+                  now: now,
+                  due: due
                 })
                 .then(() => resolve(true))
                 .catch(() => reject(false));
             }
           })
-          .then(() => {
-            /*
-            console.log(this.takimNo);
-            console.log(this.aktifTakim);
-            console.log(this.hamleSirasi);
-            */
-          });
       });
     },
-    hamleBeklemeSuresiGuncelle(moveCountDownId) {
+    updateMovementWaitStopWatch(moveCountDownId) {
       return new Promise((resolve, reject) => {
         let ref = db.collection("game_waits");
         ref
@@ -223,45 +213,45 @@ export default {
               ref
                 .doc(moveCountDownId)
                 .update({
-                  simdikiZaman: new Date()
+                  now: new Date()
                 })
                 .then(() => resolve(true))
                 .catch(() => {
-                  this.hamleBeklemeSuresiGuncelle(moveCountDownId);
+                  //this.updateMovementWaitStopWatch(moveCountDownId);
                   reject(false);
                 });
             }
           });
       });
     },
-    kalanSuresiGetir(datetime) {
-      let simdikiZaman = datetime.simdikiZaman.seconds;
-      let bitisTarih = datetime.bitisTarih.seconds;
-      return bitisTarih - simdikiZaman;
+    getRemainingTime(datetime) {
+      let now = datetime.now.seconds;
+      let due = datetime.due.seconds;
+      return due - now;
     },
-    hamleBeklemeSuresiGoster() {
+    showMovementWaitStopWatch() {
       window.clearTimeout(this.timeoutHandleMove);
       let ref = db.collection("game_waits");
       ref.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
             (change.type == "modified" || change.type == "added") &&
-            change.doc.data().oyunNo == this.oyunNo &&
-            change.doc.data().hamleYapanOyuncu &&
-            !this.hamleBeklemeSuresiDolduMu
+            change.doc.data().gameNo == this.gameNo &&
+            change.doc.data().movingPlayer &&
+            !this.isMoveStopwatchExpired
           ) {
             this.moveScaleCSS = "scale-in";
-            this.hamleBeklemeSuresiDolduMu = false;
-            this.moveCountDown = this.kalanSuresiGetir(change.doc.data());
-            //   console.log(this.kazananOyuncu)
+            this.isMoveStopwatchExpired = false;
+            this.moveCountDown = this.getRemainingTime(change.doc.data());
+            //   console.log(this.winnerPlayer)
             if (this.moveCountDown >= 0) {
               let moveCountDownId = change.doc.id;
               if (
-                change.doc.data().hamleYapanOyuncu === this.currentUser.email &&
-                this.kazananOyuncu === null
+                change.doc.data().movingPlayer === this.currentUser.email &&
+                this.winnerPlayer === null
               ) {
                 this.timeoutHandleMove = setTimeout(() => {
-                  this.hamleBeklemeSuresiGuncelle(moveCountDownId);
+                  this.updateMovementWaitStopWatch(moveCountDownId);
                 }, 1000);
                 this.moveCountDown <= 60
                   ? (this.isOpenMoveCountDownAlert = true)
@@ -269,21 +259,21 @@ export default {
               }
             } else {
               window.clearTimeout(this.timeoutHandleMove);
-              if (!this.hamleBeklemeSuresiDolduMu) {
-                this.hamleBeklemeSuresiDolduMu = true;
-                this.hamleBeklemeSuresiSil();
-                this.takimDegistir();
-                if (this.hamleSirasi === this.currentUser.email) {
-                  this.hamleSirasiDegistir();
+              if (!this.isMoveStopwatchExpired) {
+                this.isMoveStopwatchExpired = true;
+                this.deleteMovementWaitStopWatch();
+                this.changePlayer();
+                if (this.moveOrder === this.currentUser.email) {
+                  this.changeMoveOrder();
                   setTimeout(() => {
                     console.log("yeni oluşturuluyor 23");
-                    this.hamleBeklemeSuresiOlustur();
+                    this.createMovementWaitStopWatch();
                   }, 2000);
                 }
                 setTimeout(() => {
                   (this.moveScaleCSS = "scale-out"),
                     (this.isOpenMoveCountDownAlert = false);
-                  this.hamleBeklemeSuresiDolduMu = false;
+                  this.isMoveStopwatchExpired = false;
                 }, 3000);
               }
             }
@@ -291,12 +281,12 @@ export default {
         });
       });
     },
-    hamleBeklemeSuresiSil() {
+    deleteMovementWaitStopWatch() {
       db.collection("game_waits")
-        .where("oyunNo", "==", this.oyunNo)
-        .where("hamleYapanOyuncu", "in", [
+        .where("gameNo", "==", this.gameNo)
+        .where("movingPlayer", "in", [
           this.currentUser.email,
-          this.rakip.email
+          this.opponent.email
         ])
         .get()
         .then(docs => {
@@ -308,12 +298,12 @@ export default {
           });
         });
     },
-    hamleBeklemeSuresiYenidenBaslat() {
+    restartMovementWaitStopWatch() {
       db.collection("game_waits")
-        .where("oyunNo", "==", this.oyunNo)
-        .where("hamleYapanOyuncu", "in", [
+        .where("gameNo", "==", this.gameNo)
+        .where("movingPlayer", "in", [
           this.currentUser.email,
-          this.rakip.email
+          this.opponent.email
         ])
         .get()
         .then(docs => {
@@ -325,22 +315,22 @@ export default {
           });
         })
         .then(() => {
-          this.hamleBeklemeSuresiOlustur();
+          this.createMovementWaitStopWatch();
         });
     },
-    rakipOyuncuBeklemeSuresiGoster() {
+    showOpponentWaitStopWatch() {
       window.clearTimeout(this.timeoutHandleGameStart);
       let ref = db.collection("game_waits");
       ref.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
             (change.type == "modified" || change.type == "added") &&
-            change.doc.data().oyunNo == this.oyunNo
+            change.doc.data().gameNo == this.gameNo
           ) {
-            if (!this.oyuncuKadroTamamMi && this.oyunDurumNo == null) {
-             let kalanSure=this.kalanSuresiGetir(change.doc.data());
-              if (kalanSure > 0) {
-                this.gameStartCountDown = kalanSure <= 45 ? kalanSure : null;
+            if (!this.isPlayersCompleted && this.gameStatusNo == null) {
+             let remainingTime=this.getRemainingTime(change.doc.data());
+              if (remainingTime > 0) {
+                this.gameStartCountDown = remainingTime <= 45 ? remainingTime : null;
                 let gameStartCountDownTimerId = change.doc.id;
                 this.timeoutHandleGameStart = setTimeout(() => {
                   db.collection("game_waits")
@@ -351,22 +341,22 @@ export default {
                         db.collection("game_waits")
                           .doc(gameStartCountDownTimerId)
                           .update({
-                            simdikiZaman: new Date()
+                            now: new Date()
                           });
                       }
                     });
                 }, 1000);
               } else {
                 console.log("süre doldu ")
-                this.oyunBeklemeSuresiDolduMu = true;
+                this.isOpponentStopwatchExpired = true;
                 window.clearTimeout(this.timeoutHandleGameStart);
-                this.oyunBeklemeSuresiSil();
-                this.skorArtir(this.rakip.email);
-                this.oyunSil();
-                this.bildirimSil();
+                this.deleteOpponentWaitStopWatch();
+                this.increaseScore(this.opponent.email);
+                this.deleteGame();
+                this.deleteNotifications();
                 this.updatePlayersPlayingStatus(false);
-                this.kazananOyuncu=this.currentUser.email
-                this.oyunDurumNo = 4;                 
+                this.winnerPlayer=this.currentUser.email
+                this.gameStatusNo = 4;                 
               }
             }
           }
@@ -374,23 +364,23 @@ export default {
       });
       
     },
-    oyunOdasiVarmi(){
-       db.collection('game_rooms').doc(this.oyunNo)
+    checkGameRoom(){
+       db.collection('game_rooms').doc(this.gameNo)
        .get().then(doc=>{
          if (!doc.exists) {
           this.updatePlayersPlayingStatus(false);
-           this.oyunSessionSil()
+           this.deleteGameSession()
            this.$router.push({ name: "Home" });
          }
        })
     },
-    oyunBeklemeSuresiSil() {
+    deleteOpponentWaitStopWatch() {
       return new Promise((resolve, reject) => {
         db.collection("game_waits")
-          .where("oyunNo", "==", this.oyunNo)
+          .where("gameNo", "==", this.gameNo)
           .where("waitingPlayer", "in", [
             this.currentUser.email,
-            this.rakip.email
+            this.opponent.email
           ])
           .get()
           .then(docs => {
@@ -404,32 +394,10 @@ export default {
           .catch(() => reject(false));
       });
     },
-    hamleBeklemeSuresiVarmi() {
-      var durum = false;
-      db.collection("game_waits")
-        .where("oyunNo", "==", this.oyunNo)
-        .where("hamleYapanOyuncu", "in", [
-          this.currentUser.email,
-          this.rakip.email
-        ])
-        .get()
-        .then(querySnapshot => {
-          if (querySnapshot.size > 0) {
-            durum = true;
-          } else {
-            durum = false;
-          }
-        })
-        .then(() => {
-          if (!durum) {
-            this.hamleBeklemeSuresiOlustur();
-          }
-        });
-    },
-    oyunKadroTamamlanmaDurumAlert() {
+    PlayersCompletionStatusAlert() {
       if (
-        this.$session.get("oyunKadroTamamMi") === undefined ||
-        this.$session.get("oyunKadroTamamMi") === false
+        this.$session.get("isPlayersCompleted") === undefined ||
+        this.$session.get("isPlayersCompleted") === false
       ) {
         this.notificationAlert(
           "success",
@@ -438,73 +406,73 @@ export default {
         );
       }
     },
-    oyuncuKadroTamamlandiMi() {
+    checkPlayersCompletionStatus() {
       db.collection("game_rooms")
-        .where("oyunNo", "==", this.oyunNo)
+        .where("gameNo", "==", this.gameNo)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
             if (
               (change.type == "modified" || change.type == "added") &&
-              change.doc.data().oyuncuKadroTamamMi &&
-              change.doc.data().kazananOyuncu === null
+              change.doc.data().isPlayersCompleted &&
+              change.doc.data().winnerPlayer === null
             ) {
-              this.oyunKadroTamamlanmaDurumAlert();
-              this.oyunDurumNo = 0;
+              this.PlayersCompletionStatusAlert();
+              this.gameStatusNo = 0;
               window.clearTimeout(this.timeoutHandleGameStart);
-              if (!this.oyuncuKadroTamamMi) {
+              if (!this.isPlayersCompleted) {
                 this.isOpenGameStartCountDownAlert = false;
                 this.isOpenMoveCountDownAlert = true;
-                this.oyuncuKadroTamamMi = true;
-                this.$session.set("oyunKadroTamamMi", true);
-                this.oyunBeklemeSuresiSil();
+                this.isPlayersCompleted = true;
+                this.$session.set("isPlayersCompleted", true);
+                this.deleteOpponentWaitStopWatch();
                 if (
-                  change.doc.data().oyunuBaslatanEmail ===
+                  change.doc.data().whichPlayerStart ===
                   this.currentUser.email
                 ) {
                   setTimeout(() => {
                     console.log("yeni oyun başlatıldı");
-                    this.hamleBeklemeSuresiOlustur();
+                    this.createMovementWaitStopWatch();
                   }, 3000);
                 }
               }
 
-              if (!this.$session.get("oyunKadroTamamMi")) {
+              if (!this.$session.get("isPlayersCompleted")) {
                 window.setTimeout(() => {
                   this.gameStartScaleCSS = "scale-out";
                 }, 2000);
               }
             } else if (
               (change.type === "added" || change.type === "modified") &&
-              change.doc.data().oyuncuKadroTamamMi === false &&
-              change.doc.data().oyunDurumNo === 0
+              change.doc.data().isPlayersCompleted === false &&
+              change.doc.data().gameStatusNo === 0
             ) {
-              if (this.oyunDurumNo !== 0) {
+              if (this.gameStatusNo !== 0) {
                 this.gameStartScaleCSS = "scale-in";
-                this.$session.set("oyunKadroTamamMi", false);
-                console.log(this.$session.get("oyunKadroTamamMi"));
+                this.$session.set("isPlayersCompleted", false);
+                console.log(this.$session.get("isPlayersCompleted"));
               }
             } else if (
               (change.type === "added" || change.type === "modified") &&
-              change.doc.data().oyunDurumNo == 1
+              change.doc.data().gameStatusNo == 1
             ) {
-              this.oyunDurumNo = 3;
+              this.gameStatusNo = 3;
             } else if (
               (change.type === "added" || change.type === "modified") &&
-              change.doc.data().oyunDurumNo === 7
+              change.doc.data().gameStatusNo === 7
             ) {
-              this.oyunDurumNo = change.doc.data().oyunDurumNo;
+              this.gameStatusNo = change.doc.data().gameStatusNo;
             }
 
             if (
               (change.type == "added" || change.type == "modified") &&
-              change.doc.data().oyunDurumNo == 5
+              change.doc.data().gameStatusNo == 5
             ) {
-              this.oyunDurumNo = change.doc.data().oyunDurumNo;
+              this.gameStatusNo = change.doc.data().gameStatusNo;
             } else if (
               (change.type == "added" || change.type == "modified") &&
-              change.doc.data().oyunDurumNo == 6
+              change.doc.data().gameStatusNo == 6
             ) {
-              this.oyunDurumNo = change.doc.data().oyunDurumNo;
+              this.gameStatusNo = change.doc.data().gameStatusNo;
             }
           });
         });
@@ -518,52 +486,51 @@ export default {
       });
     },
     openExitGameConfirmModal() {
-      if (this.oyuncuKadroTamamMi) {
-        this.oyunDurumNo = 1;
+      if (this.isPlayersCompleted) {
+        this.gameStatusNo = 1;
       } else {
-        this.oyunDurumNo = 2;
+        this.gameStatusNo = 2;
       }
     },
     modalClose() {
-      this.oyunDurumNo = null;
+      this.gameStatusNo = null;
     },
-    oyunCikis() {
+    exitGame() {
       this.updatePlayersPlayingStatus(false);
-      if (this.oyunDurumNo == 1) {
-        this.oyuncuKadroDegistir(false);
-        this.hamleBeklemeSuresiSil();
-        this.oyuncuDurumNoDegistir(1);
-        this.bildirimSil();
-        this.kazananOyuncuEkle(this.rakip.email);
-        this.skorArtir(this.rakip.email);
-      } else if (this.oyunDurumNo === 2) {
-        this.oyunDurumNo = 0;
-        this.bildirimSil();
-        this.oyunSil();
-        this.oyunBeklemeSuresiSil();
-      } else if (this.oyunDurumNo === 3) {
-        this.oyunHamleSil();
-        this.oyunSil();
-      } else if (this.oyunDurumNo === 4) {
-        this.bildirimSil();
-        this.oyunSil();
-      } else if (this.oyunDurumNo === 5 || this.oyunDurumNo === 6) {
-        this.oyuncuKadroDegistir(false);
-        this.oyuncuDurumNoDegistir(7);
-        this.bildirimSil();
-      } else if (this.oyunDurumNo === 7) {
-        this.oyunHamleSil();
-        this.bildirimSil();
-        this.oyunSil();
+      if (this.gameStatusNo == 1) {
+        this.changePlayersCompletionStatus(false);
+        this.deleteMovementWaitStopWatch();
+        this.changeGameStatusNo(1);
+        this.deleteNotifications();
+        this.addWinnerPlayer(this.opponent.email);
+        this.increaseScore(this.opponent.email);
+      } else if (this.gameStatusNo === 2) {
+        this.gameStatusNo = 0;
+        this.deleteNotifications();
+        this.deleteGame();
+        this.deleteOpponentWaitStopWatch();
+      } else if (this.gameStatusNo === 3) {
+        this.deleteGameMoves();
+        this.deleteGame();
+      } else if (this.gameStatusNo === 4) {
+        this.deleteNotifications();
+        this.deleteGame();
+      } else if (this.gameStatusNo === 5 || this.gameStatusNo === 6) {
+        this.changePlayersCompletionStatus(false);
+        this.changeGameStatusNo(7);
+        this.deleteNotifications();
+      } else if (this.gameStatusNo === 7) {
+        this.deleteGameMoves();
+        this.deleteNotifications();
+        this.deleteGame();
       }
-      this.oyunSessionSil();
+      this.deleteGameSession();
       this.$router.push({ name: "Home" });
     },
-    bildirimSil() {
-      let rakip = this.$session.get("rakipOyuncu");
+    deleteNotifications() {
       db.collection("notifications")
         .where("receiverEmail", "==", this.currentUser.email)
-        .where("senderEmail", "==", rakip.email)
+        .where("senderEmail", "==", this.opponent.email)
         .get()
         .then(notifications => {
           notifications.forEach(notification => {
@@ -574,7 +541,7 @@ export default {
         })
         .then(() => {
           db.collection("notifications")
-            .where("receiverEmail", "==", rakip.email)
+            .where("receiverEmail", "==", this.opponent.email)
             .where("senderEmail", "==", this.currentUser.email)
             .get()
             .then(notifications => {
@@ -586,108 +553,107 @@ export default {
             });
         });
     },
-
-    oyuncuKadroDegistir(status) {
+    changePlayersCompletionStatus(status) {
       db.collection("game_rooms")
-        .doc(this.oyunNo)
+        .doc(this.gameNo)
         .update({
-          oyuncuKadroTamamMi: status
+          isPlayersCompleted: status
         });
     },
-    oyuncuDurumNoDegistir(no) {
+    changeGameStatusNo(no) {
       return new Promise((resolve, reject) => {
         db.collection("game_rooms")
-          .doc(this.oyunNo)
+          .doc(this.gameNo)
           .update({
-            oyunDurumNo: no
+            gameStatusNo: no
           })
           .then(() => resolve(true))
           .catch(() => reject(false));
       });
     },
-    oyunSil() {
+    deleteGame() {
       db.collection("game_rooms")
-        .doc(this.oyunNo)
+        .doc(this.gameNo)
         .delete();
     },
-    oyunSessionSil() {
-      this.$session.remove("rakipOyuncu");
-      this.$session.remove("oyunNo");
-      this.$session.remove("oyunKadroTamamMi");
+    deleteGameSession() {
+      this.$session.remove("opponentUser");
+      this.$session.remove("gameNo");
+      this.$session.remove("isPlayersCompleted");
     },
-    oyunHamleSil() {
-      db.collection("hamleler")
-        .where("oyunNo", "==", this.oyunNo)
+    deleteGameMoves() {
+      db.collection("movements")
+        .where("gameNo", "==", this.gameNo)
         .get()
-        .then(hamleler => {
-          hamleler.forEach(doc => {
-            db.collection("hamleler")
+        .then(movements => {
+          movements.forEach(doc => {
+            db.collection("movements")
               .doc(doc.id)
               .delete();
           });
         });
     },
-    yeniOyun() {
-      db.collection("hamleler")
-        .where("oyunNo", "==", this.oyunNo)
+    newGame() {
+      db.collection("movements")
+        .where("gameNo", "==", this.gameNo)
         .get()
-        .then(hamleler => {
-          hamleler.forEach(doc => {
-            db.collection("hamleler")
+        .then(movements => {
+          movements.forEach(doc => {
+            db.collection("movements")
               .doc(doc.id)
               .delete();
           });
         });
-      this.kazananOyuncuSifirla();
-      this.oyuncuDurumNoDegistir(0);
+      this.resetWinnerPlayer();
+      this.changeGameStatusNo(0);
       setTimeout(() => {
-        this.hamleBeklemeSuresiOlustur();
+        this.createMovementWaitStopWatch();
       }, 1500);
     },
-    oyunVerileriSifirla() {
+    resetGameData() {
       this.moveCountDown = null;
-      this.hamleBeklemeSuresiDolduMu = false;
+      this.isMoveStopwatchExpired = false;
       this.isOpenMoveCountDownAlert = true;
-      this.oyunBittiMi = false;
-      this.oyunDurumNo = null;
-      this.hamleler = [];
+      this.isGameOver = false;
+      this.gameStatusNo = null;
+      this.movements = [];
     },
     whichPlayerStart() {
-      let ref = db.collection("game_rooms").doc(this.oyunNo);
+      let ref = db.collection("game_rooms").doc(this.gameNo);
       ref
         .get()
         .then(doc => {
-          this.baslayanOyuncu = doc.data().oyunuBaslatanEmail;
-          this.hamleSirasi = doc.data().oyunuBaslatanEmail;
+          this.startingPlayer = doc.data().whichPlayerStart;
+          this.moveOrder = doc.data().whichPlayerStart;
         })
         .then(() => {
-          if (this.hamleSirasi == this.currentUser.email) {
-            this.aktifTakim = 1;
+          if (this.moveOrder == this.currentUser.email) {
+            this.activePlayer = 1;
           } else {
-            this.aktifTakim = 2;
+            this.activePlayer = 2;
           }
         })
         .then(() => {
-          this.hamleSırasiGetir();
+          this.getMoveOrder();
         });
     },
-    hamleSirasiBendeMi() {
-      if (this.hamleSirasi === this.currentUser.email) {
+    isItMyTurn() {
+      if (this.moveOrder === this.currentUser.email) {
         return true;
       } else {
         return false;
       }
     },
-    oyunBasladiMi() {
-      if (this.oyuncuKadroTamamMi) {
+    isGameStarted() {
+      if (this.isPlayersCompleted) {
         return true;
       } else {
         return false;
       }
     },
-    hamleYapilsinMi() {
-      if (this.oyunBasladiMi()) {
-        if (this.hamleSirasiBendeMi()) {
+    isMakeMove() {
+      if (this.isGameStarted()) {
+        if (this.isItMyTurn()) {
           return true;
         } else {
           this.notificationAlert(
@@ -701,397 +667,395 @@ export default {
         this.notificationAlert(
           "error",
           "Rakip Bekleniliyor...",
-          "Rakip oyuncu " + this.rakip.username + " oyuna dahil olmadı."
+          "Rakip oyuncu " + this.opponent.username + " oyuna dahil olmadı."
         );
         return false;
       }
     },
-    hamle(event) {
-      if (this.hamleYapilsinMi()) {
+    makeMove(event) {
+      if (this.isMakeMove()) {
         this.zIndexStyle = true;
         setTimeout(() => {
           this.zIndexStyle = false;
         }, 1500);
-        this.hamleSoundEfeck();
+        this.movementSoundEffect();
         const col = parseInt(event.target.attributes.col.value);
-        let enAltSatir = this.altSatirBul(col);
-        if (enAltSatir) {
-          this.row = enAltSatir;
+        let bottomRow = this.findBottomRow(col);
+        if (bottomRow) {
+          this.row = bottomRow;
           this.col = col;
-          this.renk = this.takimRenkGetir();
-          this.takimNo = this.aktifTakim;
-          this.takimDegistir();
-          this.hamleKaydet();
-          this.hamleSirasiDegistir();
+          this.color = this.getPlayerColor();
+          this.playerNo = this.activePlayer;
+          this.changePlayer();
+          this.saveMove();
+          this.changeMoveOrder();
 
           window.clearTimeout(this.timeoutHandleMove);
           setTimeout(() => {
             if (
-              !this.hamleBeklemeSuresiDolduMu &&
-              this.kazananOyuncu === null
+              !this.isMoveStopwatchExpired &&
+              this.winnerPlayer === null
             ) {
-              this.hamleBeklemeSuresiDolduMu = true;
+              this.isMoveStopwatchExpired = true;
               console.log("oluşturuldu");
-              this.hamleBeklemeSuresiYenidenBaslat();
+              this.restartMovementWaitStopWatch();
             }
           }, 2000);
         } else {
           this.notificationAlert(
             "error",
             "Uyarı",
-            "Hamle yapmak istediğiniz satir dolu."
+            "Hamle yapmak istediğiniz satır dolu."
           );
         }
       }
     },
-    hamlelerListele() {
-      db.collection("hamleler")
-        .where("oyunNo", "==", this.oyunNo)
+    getMovesList() {
+      db.collection("movements")
+        .where("gameNo", "==", this.gameNo)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
             if (change.type === "added" || change.type === "modified") {
               let doc = change.doc.data();
 
-              let hamleIndex = this.hamleIndexGetir(doc.row, doc.col);
-              if (!this.hamleVarmi(hamleIndex)) {
-                this.hamleler.push({
+              let movementIndex = this.getMoveIndex(doc.row, doc.col);
+              if (!this.checkMovement(movementIndex)) {
+                this.movements.push({
                   row: doc.row,
                   col: doc.col,
-                  renk: doc.renk
+                  color: doc.color
                 });
-                this.aktifTakim = doc.aktifTakim;
-                this.takimNo = doc.takimNo;
-                this.takimHamleSayisiArtir();
+                this.activePlayer = doc.activePlayer;
+                this.playerNo = doc.playerNo;
+                this.increasePlayerMoves();
               } else {
-                //      this.hamleler[hamleIndex].row = doc.row;
-                //    this.hamleler[hamleIndex].col = doc.col;
-                this.hamleler[hamleIndex].renk = doc.renk;
+                this.movements[movementIndex].color = doc.color;
               }
             }
           });
         });
     },
-    hamleSirasiDegistir() {
-      var ref = db.collection("game_rooms").doc(this.oyunNo);
+    changeMoveOrder() {
+      var ref = db.collection("game_rooms").doc(this.gameNo);
       ref.update({
-        hamleSirasi: this.rakip.email
+        moveOrder: this.opponent.email
       });
     },
-    hamleSırasiGetir() {
+    getMoveOrder() {
       db.collection("game_rooms")
-        .where("oyunNo", "==", this.oyunNo)
+        .where("gameNo", "==", this.gameNo)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
             if (change.type == "modified" || change.type == "added") {
-              this.hamleSirasi = change.doc.data().hamleSirasi;
+              this.moveOrder = change.doc.data().moveOrder;
             }
           });
         });
     },
-    sonHamleGetir() {
-      db.collection("hamleler")
+    getLastMovement() {
+      db.collection("movements")
         .orderBy("timestamp")
         .limitToLast(1)
         .get()
         .then(() => {
-          this.oyunuKazandiMi(this.row, this.col);
+          this.isGameWinned(this.row, this.col);
         });
     },
-    hamleIndexGetir(row, col) {
-      return this.hamleler.findIndex(hamle => {
-        return hamle.row === row && hamle.col === col;
+    getMoveIndex(row, col) {
+      return this.movements.findIndex(movement => {
+        return movement.row === row && movement.col === col;
       });
     },
-    hamleVarmi(hamleIndex) {
-      if (hamleIndex === -1) {
+    checkMovement(movementIndex) {
+      if (movementIndex === -1) {
         return false;
       } else {
         return true;
       }
     },
-    hamleKaydet() {
-      let hamleIndex = this.hamleIndexGetir(this.row, this.col);
-      if (!this.hamleVarmi(hamleIndex)) {
-        db.collection("hamleler")
+    saveMove() {
+      let movementIndex = this.getMoveIndex(this.row, this.col);
+      if (!this.checkMovement(movementIndex)) {
+        db.collection("movements")
           .add({
             row: this.row,
             col: this.col,
-            renk: this.renk,
-            takimNo: this.takimNo,
-            aktifTakim: this.aktifTakim,
-            oyunNo: this.oyunNo,
+            color: this.color,
+            playerNo: this.playerNo,
+            activePlayer: this.activePlayer,
+            gameNo: this.gameNo,
             timestamp: Date.now()
           })
           .then(() => {
-            this.sonHamleGetir();
+            this.getLastMovement();
           });
       }
     },
     dbreset() {
-      this.hamleler = [];
+      this.movements = [];
       var jobskill_query = db
-        .collection("hamleler")
-        .where("oyunNo", "==", this.oyunNo);
+        .collection("movements")
+        .where("gameNo", "==", this.gameNo);
       jobskill_query.get().then(function(querySnapshot) {
         querySnapshot.forEach(function(doc) {
           doc.ref.delete();
         });
       });
     },
-    caprazKontrol(satirNo, sutunNo) {
-      this.dortluKonumlar = [];
-      let hucreSayisi = 0;
+    checkCross(rowNo, colNo) {
+      this.quadPositions = [];
+      let cellCount = 0;
 
-      hucreSayisi = this.caprazAsagiSolKontrol(satirNo, sutunNo, hucreSayisi);
-      if (this.dortluTamamlandimi(hucreSayisi)) {
-        this.oyunTamamlandi();
+      cellCount = this.checkCrossDownLeft(rowNo, colNo, cellCount);
+      if (this.isConnectionFourCompleted(cellCount)) {
+        this.gameCompleted();
       }
 
-      hucreSayisi = this.caprazYukariSagKontrol(satirNo, sutunNo, hucreSayisi);
-      if (this.dortluTamamlandimi(hucreSayisi)) {
-        this.oyunTamamlandi();
+      cellCount = this.checkCrossUpRight(rowNo, colNo, cellCount);
+      if (this.isConnectionFourCompleted(cellCount)) {
+        this.gameCompleted();
       }
 
-      hucreSayisi = 0;
-      this.dortluKonumlar = [];
-      hucreSayisi = this.caprazAsagiSagKontrol(satirNo, sutunNo, hucreSayisi);
-      if (this.dortluTamamlandimi(hucreSayisi)) {
-        this.oyunTamamlandi();
+      cellCount = 0;
+      this.quadPositions = [];
+      cellCount = this.checkCrossDownRight(rowNo, colNo, cellCount);
+      if (this.isConnectionFourCompleted(cellCount)) {
+        this.gameCompleted();
       }
 
-      hucreSayisi = this.caprazYukariSolKontrol(satirNo, sutunNo, hucreSayisi);
-      if (this.dortluTamamlandimi(hucreSayisi)) {
-        this.oyunTamamlandi();
+      cellCount = this.checkCrossUpLeft(rowNo, colNo, cellCount);
+      if (this.isConnectionFourCompleted(cellCount)) {
+        this.gameCompleted();
       }
     },
-    caprazYukariSolKontrol(satirNo, sutunNo, hucreSayisi) {
-      let renkKodu = 0;
-      satirNo--;
-      for (let sutun = sutunNo - 1; sutun > 0; sutun--) {
-        renkKodu = this.hucreRenginiGetir(satirNo, sutun);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({ row: satirNo, col: sutun });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+    checkCrossUpLeft(rowNo, colNo, cellCount) {
+      let colorNo = 0;
+      rowNo--;
+      for (let col = colNo - 1; col > 0; col--) {
+        colorNo = this.getCellColor(rowNo, col);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({ row: rowNo, col: col });
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
-        satirNo--;
+        rowNo--;
       }
-      return hucreSayisi;
+      return cellCount;
     },
-    caprazAsagiSagKontrol(satirNo, sutunNo, hucreSayisi) {
-      let renkKodu = 0;
-      for (let sutun = sutunNo; sutun < 9; sutun++) {
-        renkKodu = this.hucreRenginiGetir(satirNo, sutun);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({ row: satirNo, col: sutun });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+    checkCrossDownRight(rowNo, colNo, cellCount) {
+      let colorNo = 0;
+      for (let col = colNo; col < 9; col++) {
+        colorNo = this.getCellColor(rowNo, col);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({ row: rowNo, col: col });
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
-        if (satirNo < 7) {
-          satirNo++;
+        if (rowNo < 7) {
+          rowNo++;
         }
       }
-      return hucreSayisi;
+      return cellCount;
     },
-    caprazAsagiSolKontrol(satirNo, sutunNo, hucreSayisi) {
-      let renkKodu = 0;
-      for (let sutun = sutunNo; sutun > 0; sutun--) {
-        renkKodu = this.hucreRenginiGetir(satirNo, sutun);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({ row: satirNo, col: sutun });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+    checkCrossDownLeft(rowNo, colNo, cellCount) {
+      let colorNo = 0;
+      for (let col = colNo; col > 0; col--) {
+        colorNo = this.getCellColor(rowNo, col);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({ row: rowNo, col: col });
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
-        if (satirNo < 7) {
-          satirNo++;
+        if (rowNo < 7) {
+          rowNo++;
         }
       }
-      return hucreSayisi;
+      return cellCount;
     },
-    caprazYukariSagKontrol(satirNo, sutunNo, hucreSayisi) {
-      let renkKodu = 0;
-      satirNo--;
-      for (let sutun = sutunNo + 1; sutun < 9; sutun++) {
-        renkKodu = this.hucreRenginiGetir(satirNo, sutun);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({ row: satirNo, col: sutun });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+    checkCrossUpRight(rowNo, colNo, cellCount) {
+      let colorNo = 0;
+      rowNo--;
+      for (let col = colNo + 1; col < 9; col++) {
+        colorNo = this.getCellColor(rowNo, col);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({ row: rowNo, col: col });
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
-        if (satirNo > 0) {
-          satirNo--;
+        if (rowNo > 0) {
+          rowNo--;
         }
       }
-      return hucreSayisi;
+      return cellCount;
     },
-    dikeyKontrol(satirNo, sutunNo) {
-      let hucreSayisi = this.dikeyYukaridanKontrol(satirNo, sutunNo);
-      if (this.dortluTamamlandimi(hucreSayisi)) {
-        this.oyunTamamlandi();
+    checkVertical(rowNo, colNo) {
+      let cellCount = this.checkVerticalUp(rowNo, colNo);
+      if (this.isConnectionFourCompleted(cellCount)) {
+        this.gameCompleted();
       }
     },
-    dikeyYukaridanKontrol(satirNo, sutunNo) {
-      let hucreSayisi = 0,
-        renkKodu = 0;
-      for (let index = satirNo; index < 7; index++) {
-        renkKodu = this.hucreRenginiGetir(index, sutunNo);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({
-            row: index,
-            col: sutunNo
+    checkVerticalUp(rowNo, colNo) {
+      let cellCount = 0,
+        colorNo = 0;
+      for (let row = rowNo; row < 7; row++) {
+        colorNo = this.getCellColor(row, colNo);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({
+            row: row,
+            col: colNo
           });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
       }
-      return hucreSayisi;
+      return cellCount;
     },
-    yatayKontrol(satirNo, sutunNo) {
-      this.dortluKonumlar = [];
-      let hucreSayisi = this.yataySoldanKontrol(satirNo, sutunNo);
-      if (this.dortluTamamlandimi(hucreSayisi)) {
-        this.oyunTamamlandi();
+    checkHorizontal(rowNo, colNo) {
+      this.quadPositions = [];
+      let cellCount = this.checkHorizontalLeft(rowNo, colNo);
+      if (this.isConnectionFourCompleted(cellCount)) {
+        this.gameCompleted();
       } else {
-        hucreSayisi = this.yataySagdanKontrol(hucreSayisi, satirNo, sutunNo);
-        if (this.dortluTamamlandimi(hucreSayisi)) {
-          this.oyunTamamlandi();
+        cellCount = this.checkHorizontalRight(cellCount, rowNo, colNo);
+        if (this.isConnectionFourCompleted(cellCount)) {
+          this.gameCompleted();
         }
       }
     },
 
-    yataySagdanKontrol(hucreSayisi, satirNo, sutunNo) {
-      let renkKodu = 0;
-      for (let index = sutunNo + 1; index < 9; index++) {
-        renkKodu = this.hucreRenginiGetir(satirNo, index);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({
-            row: satirNo,
-            col: index
+    checkHorizontalRight(cellCount, rowNo, colNo) {
+      let colorNo = 0;
+      for (let col = colNo + 1; col < 9; col++) {
+        colorNo = this.getCellColor(rowNo, col);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({
+            row: rowNo,
+            col: col
           });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
       }
     },
-    yataySoldanKontrol(satirNo, sutunNo) {
-      let hucreSayisi = 0,
-        renkKodu = 0;
-      for (let index = sutunNo; index > 0; index--) {
-        renkKodu = this.hucreRenginiGetir(satirNo, index);
-        if (renkKodu == this.takimNo) {
-          this.dortluKonumlar.push({
-            row: satirNo,
-            col: index
+    checkHorizontalLeft(rowNo, colNo) {
+      let cellCount = 0,
+        colorNo = 0;
+      for (let col = colNo; col > 0; col--) {
+        colorNo = this.getCellColor(rowNo, col);
+        if (colorNo == this.playerNo) {
+          this.quadPositions.push({
+            row: rowNo,
+            col: col
           });
-          hucreSayisi++;
-          if (this.dortluTamamlandimi(hucreSayisi)) {
+          cellCount++;
+          if (this.isConnectionFourCompleted(cellCount)) {
             return 4;
           }
         } else {
-          return hucreSayisi;
+          return cellCount;
         }
       }
-      return hucreSayisi;
+      return cellCount;
     },
-    takimRenkGetir() {
-      if (this.aktifTakim == 1) {
+    getPlayerColor() {
+      if (this.activePlayer == 1) {
         return "bg-red animated bounceInDown";
-      } else if (this.aktifTakim == 2) {
+      } else if (this.activePlayer == 2) {
         return "bg-green  animated bounceInDown";
       }
     },
-    dortluTamamlandimi(hucreSayisi) {
-      if (hucreSayisi == 4) {
+    isConnectionFourCompleted(cellCount) {
+      if (cellCount == 4) {
         return true;
       } else {
         return false;
       }
     },
-    kazananOyuncuEkle(oyuncu) {
+    addWinnerPlayer(player) {
       db.collection("game_rooms")
-        .doc(this.oyunNo)
+        .doc(this.gameNo)
         .update({
-          kazananOyuncu: oyuncu
+          winnerPlayer: player
         });
     },
-    kazananOyuncuSifirla() {
+    resetWinnerPlayer() {
       return new Promise((resolve, reject) => {
-        if (this.kazananOyuncu) {
+        if (this.winnerPlayer) {
           db.collection("game_rooms")
-            .doc(this.oyunNo)
+            .doc(this.gameNo)
             .update({
-              kazananOyuncu: null,
-              hamleSirasi: this.currentUser.email
+              winnerPlayer: null,
+              moveOrder: this.currentUser.email
             })
             .then(() => resolve(true))
             .catch(() => reject(false));
         }
       });
     },
-    kazananOyuncuGetir() {
+    getWinnerPlayer() {
       db.collection("game_rooms").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
             (change.type == "modified" || change.type == "added") &&
-            change.doc.id == this.oyunNo &&
-            change.doc.data().kazananOyuncu &&
-            change.doc.data().oyunDurumNo === 5
+            change.doc.id == this.gameNo &&
+            change.doc.data().winnerPlayer &&
+            change.doc.data().gameStatusNo === 5
           ) {
-            this.kazananOyuncu = change.doc.data().kazananOyuncu;
+            this.winnerPlayer = change.doc.data().winnerPlayer;
             console.log("kazanan oyuncu getir");
-            if (change.doc.data().oyuncuKadroTamamMi) {
-              this.WinnerSoundEfeck();
-              this.oyunBittiMi = true;
+            if (change.doc.data().isPlayersCompleted) {
+              this.winnerSoundEffect();
+              this.isGameOver = true;
               this.isOpenMoveCountDownAlert = false;
             }
           } else if (
             (change.type == "modified" || change.type == "added") &&
-            change.doc.id == this.oyunNo &&
-            change.doc.data().kazananOyuncu === null &&
-            change.doc.data().oyunDurumNo === 0 &&
-            this.oyunBittiMi
+            change.doc.id == this.gameNo &&
+            change.doc.data().winnerPlayer === null &&
+            change.doc.data().gameStatusNo === 0 &&
+            this.isGameOver
           ) {
             console.log("Yeni oyun veri sıfırla");
-            //console.log(change.doc.data().kazananOyuncu);
-            this.kazananOyuncu = null;
+            //console.log(change.doc.data().winnerPlayer);
+            this.winnerPlayer = null;
             this.notificationAlert(
               "success",
               "Yeni Oyun",
               "Yeni oyun başladı."
             );
-            this.oyunVerileriSifirla();
+            this.resetGameData();
             this.whichPlayerStart();
           }
         });
       });
     },
-    skorArtir(oyuncuEmail) {
+    increaseScore(playerEmail) {
       db.collection("scores")
-        .where("email", "==", oyuncuEmail)
+        .where("email", "==", playerEmail)
         .get()
         .then(querySnapshot => {
           querySnapshot.forEach(doc => {
@@ -1103,7 +1067,7 @@ export default {
           });
         });
     },
-    skorGetir() {
+    getScore() {
       db.collection("scores").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
@@ -1113,136 +1077,131 @@ export default {
             this.currentUserSkor = change.doc.data().score;
           } else if (
             (change.type == "added" || change.type == "modified") &&
-            change.doc.data().email == this.rakip.email
+            change.doc.data().email == this.opponent.email
           ) {
-            this.rakipSkor = change.doc.data().score;
+            this.opponentScore = change.doc.data().score;
           }
         });
       });
     },
-    altSatirBul(sutun) {
-      for (let index = 6; index > 0; index--) {
-        let hucreKullanilmaDurumu = this.hucreKullanildiMi(index, sutun);
-        if (!hucreKullanilmaDurumu) {
-          return index;
+    findBottomRow(col) {
+      for (let row = 6; row > 0; row--) {
+        let cellUsageStatus = this.isCellUsed(row, col);
+        if (!cellUsageStatus) {
+          return row;
         }
       }
       return false;
     },
-    hucreKullanildiMi(index, sutunNo) {
-      if (this.hucreRenginiGetir(index, sutunNo) > 0) {
+    isCellUsed(row,col) {
+      if (this.getCellColor(row,col) > 0) {
         return true;
       } else {
         return false;
       }
     },
-    hucreRenginiGetir(row, col) {
-      const hucre = this.hamleler.find(
-        element => element.row == row && element.col == col
+    getCellColor(row, col) {
+      const cell = this.movements.find(
+        movement => movement.row == row && movement.col == col
       );
-      if (hucre) {
-        if (hucre.renk.includes("bg-red")) {
+      if (cell) {
+        if (cell.color.includes("bg-red")) {
           return 1;
-        } else if (hucre.renk.includes("bg-green")) {
+        } else if (cell.color.includes("bg-green")) {
           return 2;
         } else {
           return 0;
         }
       }
     },
-    renkYerlestir(row, col) {
-      const hucre = this.hamleler.find(
-        element => element.row == row && element.col == col
+    setColor(row, col) {
+      const cell = this.movements.find(
+        movement => movement.row == row && movement.col == col
       );
-      if (hucre) {
-        return hucre.renk;
+      if (cell) {
+        return cell.color;
       }
       return "";
     },
-    takimDegistir() {
-      if (this.aktifTakim == 1) {
-        this.aktifTakim = 2;
-      } else if (this.aktifTakim == 2) {
-        this.aktifTakim = 1;
+    changePlayer() {
+      if (this.activePlayer == 1) {
+        this.activePlayer = 2;
+      } else if (this.activePlayer == 2) {
+        this.activePlayer = 1;
       }
     },
-    takimHamleSayisiArtir() {
-      if (this.takimNo == 1) {
-        this.kirmiziHamleSayisi++;
-      } else if (this.takimNo == 2) {
-        this.yesilHamleSayisi++;
+    increasePlayerMoves() {
+      if (this.playerNo == 1) {
+        this.redMoveCount++;
+      } else if (this.playerNo == 2) {
+        this.greenMoveCount++;
       }
     },
-    dortleyenAnimasyonBaslat() {
-      this.dortluKonumlar.forEach(hucre => {
-        db.collection("hamleler")
-          .where("oyunNo", "==", this.oyunNo)
-          .where("row", "==", hucre.row)
-          .where("col", "==", hucre.col)
+    startQuadAnimation() {
+      this.quadPositions.forEach(cell => {
+        db.collection("movements")
+          .where("gameNo", "==", this.gameNo)
+          .where("row", "==", cell.row)
+          .where("col", "==", cell.col)
           .get()
           .then(querySnapshot =>
             querySnapshot.forEach(doc => {
-              db.collection("hamleler")
+              db.collection("movements")
                 .doc(doc.id)
                 .update({
-                  renk: "dortluAnimasyon"
+                  color: "dortluAnimasyon"
                 });
             })
           );
       });
     },
-    oyunTamamlandi() {
-      this.dortleyenAnimasyonBaslat();
-      this.oyunBittiMi = true;
-      this.hamleBeklemeSuresiDolduMu = true;
+    gameCompleted() {
+      this.startQuadAnimation();
+      this.isGameOver = true;
+      this.isMoveStopwatchExpired = true;
       this.isOpenMoveCountDownAlert = false;
-      this.yesilHamleSayisi = 0;
-      this.kirmiziHamleSayisi = 0;
-      this.aktifTakim = null;
-      this.takimNo = null;
-      this.hamleSirasi = null;
+      this.greenMoveCount = 0;
+      this.redMoveCount = 0;
+      this.activePlayer = null;
+      this.playerNo = null;
+      this.moveOrder = null;
       this.moveCountDown = null;
 
       setTimeout(() => {
-        this.oyuncuDurumNoDegistir(5);
+        this.changeGameStatusNo(5);
       }, 3000);
-      this.kazananOyuncuEkle(this.currentUser.email);
-      this.skorArtir(this.currentUser.email);
-      this.hamleBeklemeSuresiSil();
+      this.addWinnerPlayer(this.currentUser.email);
+      this.increaseScore(this.currentUser.email);
+      this.deleteMovementWaitStopWatch();
     },
 
-    oyunuKazandiMi(satir, sutun) {
-      var kontrolYapilsinmi = false;
-      if (this.takimNo == 1) {
-        if (this.kirmiziHamleSayisi >= 4) {
-          kontrolYapilsinmi = true;
+    isGameWinned(row, col) {
+      var isCheck = false;
+      if (this.playerNo == 1) {
+        if (this.redMoveCount >= 4) {
+          isCheck = true;
         }
-      } else if (this.takimNo == 2) {
-        if (this.yesilHamleSayisi >= 4) {
-          kontrolYapilsinmi = true;
+      } else if (this.playerNo == 2) {
+        if (this.greenMoveCount >= 4) {
+          isCheck = true;
         }
       }
-      if (kontrolYapilsinmi) {
-        this.dikeyKontrol(satir, sutun);
-        if (!this.oyunBittiMi) this.yatayKontrol(satir, sutun);
-        if (!this.oyunBittiMi) this.caprazKontrol(satir, sutun);
+      if (isCheck) {
+        this.checkVertical(row, col);
+        if (!this.isGameOver) this.checkHorizontal(row, col);
+        if (!this.isGameOver) this.checkCross(row, col);
       }
-      if (this.kazananOyuncu === null && this.hamleler.length === 48) {
-        this.kazananOyuncuEkle(false);
-        this.oyunBittiMi = true;
-        this.oyuncuDurumNoDegistir(6);
+      if (this.winnerPlayer === null && this.movements.length === 48) {
+        this.addWinnerPlayer(false);
+        this.isGameOver = true;
+        this.changeGameStatusNo(6);
       }
     }
   }
 };
 </script>
 
-
-<style >
-</style>
 <style lang="css" scoped >
 @import "../assets/css/dortleme.css";
-.vue-notification-group{
-  margin-top:64px;
-}
+@import "../assets/css/all.css";
 </style>

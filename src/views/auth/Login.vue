@@ -69,12 +69,14 @@ export default {
                   this.createNotificationSession();
                   this.$router.push({ name: "Home" });
                 } else {
-                  this.feedback ="Giriş esnasında bir sorunla karşılaşıldı.Tekrar deneyiniz.";
+                  this.feedback =
+                    "Giriş esnasında bir sorunla karşılaşıldı.Tekrar deneyiniz.";
                 }
               });
             } else {
               this.emailVerified = false;
-              this.feedback ="Email adresiniz doğrulanmamış görünüyor.Email adresinize tekrar doğrulama bağlantısı göndermek için";
+              this.feedback =
+                "Email adresiniz doğrulanmamış görünüyor.Email adresinize tekrar doğrulama bağlantısı göndermek için";
             }
           })
           .catch(error => {
@@ -90,12 +92,32 @@ export default {
         this.feedback = "Lütfen tüm alanları doldurunuz!";
       }
     },
+    isUserOnline() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_users")
+          .doc(this.email)
+          .get()
+          .then(user => {
+            if (user.exists) {
+              return true;
+            } else {
+              return false;
+            }
+          })
+          .then(status => resolve(status))
+          .catch(error => reject(error));
+      });
+    },
     UpdatedUserIsPlayStatus() {
-      db.collection("game_users")
-        .doc(this.email)
-        .update({
-          is_play: false
-        });
+      this.isUserOnline().then(status => {
+        if (status === true) {
+          db.collection("game_users")
+            .doc(this.email)
+            .update({
+              is_play: false
+            });
+        }
+      });
     },
     verifyEmail() {
       this.emailVerified = null;

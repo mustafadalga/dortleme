@@ -6,11 +6,11 @@
       <div class="modal-content">
         <h4>Uyarı</h4>
         <p>Oyundan çıkmak istediğinize emin misiniz ?</p>
-        <p>{{ oyunDurumNo===1 ? "Oyundan çıkmanız halinde hükmen mağlup olacaksınız ve karşıdaki oyuncu oyunu kazanmış olacak." : null }}</p>
+        <p>{{ gameStatusNo===1 ? "Oyundan çıkmanız halinde hükmen mağlup olacaksınız ve karşıdaki oyuncu oyunu kazanmış olacak." : null }}</p>
       </div>
       <div class="modal-footer">
          <button class="btn purple darken-3 waves-green" @click="modalClose">Hayır</button>
-         <button class="btn red btn-red" @click="oyundanCik">Evet</button>
+         <button class="btn red btn-red" @click="exitGame">Evet</button>
       </div>
     </div>
     <div
@@ -24,7 +24,7 @@
 
 export default {
   name:'ExitGameConfirmModal',
-  props:['oyunDurumNo'],
+  props:['gameStatusNo'],
   data() {
     return {
       animatedCSS: true,
@@ -37,10 +37,10 @@ export default {
        this.$emit("modalClose");
      }, 500);
    },
-   oyundanCik() {
+   exitGame() {
      this.animatedCSS = false;
      setTimeout(() => {
-       this.$emit("oyunCikis",this.$options.name);
+       this.$emit("exitGame");
      }, 500);
    }
   }
