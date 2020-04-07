@@ -6,6 +6,7 @@ import Login from '../views/auth/Login.vue'
 import Signup from '../views/auth/Signup.vue'
 import ResetPassword from '../views/auth/ResetPassword.vue'
 import Notifications from '../views/Notifications.vue'
+import NotFound from '../components/404.vue'
 import Ratings from '../views/Ratings.vue'
 import db from '@/firebase/init'
 
@@ -56,6 +57,12 @@ const routes = [{
         meta: {
             requiresAuth: true
         }
+    },
+    {
+        path: '*',
+        name: 'NotFound',
+        component: NotFound,
+
     },
 ]
 
