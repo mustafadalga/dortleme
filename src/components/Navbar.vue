@@ -1,16 +1,16 @@
 <template>
   <nav class="deep-purple darken-1">
     <div class="container">
-      <router-link v-if="$route.name==='Game'"  :to="{name:'Game'}"   class="brand-logo left">
-        <span class="brand-text">Connection 4</span>
+      <router-link v-if="$route.name==='Game'" :to="{name:'Game'}" class="brand-logo left">
+        <span class="brand-text">Dörtleme</span>
       </router-link>
-       <router-link v-else-if="$route.name!=='Game'"   :to="{name:'Home'}"  class="brand-logo left">
+      <router-link v-else-if="$route.name!=='Game'" :to="{name:'Home'}" class="brand-logo left">
         <font-awesome-icon :icon="['fas', 'home']" />
-        <span class="brand-text">Connection 4</span>
+        <span class="brand-text">Dörtleme</span>
       </router-link>
       <ul class="right">
         <li v-if="!currentUser">
-          <router-link  :to="{name:'Signup'}">
+          <router-link :to="{name:'Signup'}">
             <font-awesome-icon :icon="['fas', 'user-plus']" class="font-awesome-size" />
           </router-link>
         </li>
@@ -22,13 +22,10 @@
         <li v-if="currentUser && $route.name=='Game'">
           <a @click="exitGame">
             <font-awesome-icon :icon="['fas', 'times-circle']" class="font-awesome-size" />
-          
           </a>
         </li>
-        <li v-if="currentUser && $route.name!=='Game'" class="rating-logo" >
-          <router-link
-            :to="{name:'Ratings'}"
-          >
+        <li v-if="currentUser && $route.name!=='Game'" class="rating-logo">
+          <router-link :to="{name:'Ratings'}">
             <img src="../assets/img/rating.png" />
           </router-link>
         </li>
@@ -43,10 +40,7 @@
               class="font-awesome-size"
               :class="[notificationCount > 0 ? 'bell-on' : '',isAnimateAdded ? 'animated wobble' : '']"
             />
-            <span
-              v-if="notificationCount > 0"
-              class="bell-badge"
-            >{{ notificationCount }}</span>
+            <span v-if="notificationCount > 0" class="bell-badge">{{ notificationCount }}</span>
           </router-link>
         </li>
 
@@ -56,6 +50,10 @@
           </a>
         </li>
       </ul>
+
+      <div v-if="connectionStatus===false">
+        <InternetConnectionModal :connectionStatus="connectionStatus" />
+      </div>
     </div>
   </nav>
 </template>
@@ -79,18 +77,32 @@ library.add(
   faTimesCircle,
   faSignInAlt
 );
-
 import firebase from "firebase";
 import db from "@/firebase/init";
+import InternetConnectionModal from "@/components/InternetConnectionModal";
+
 export default {
   name: "Navbar",
+  components: {
+    InternetConnectionModal
+  },
   data() {
     return {
       isAnimateAdded: false,
-      gameNo: null
+      gameNo: null,
+      connectionStatus: null,
+      onLine: navigator.onLine
     };
   },
+  mounted() {
+    this.connectionStatus=navigator.onLine
+    this.addOnlineStatusEventListener();
+  },
+  beforeDestroy() {
+    this.removeOnlineStatusEventListener();
+  },
   created() {
+
     this.currentUser = this.$session.get("user");
     if (this.currentUser) {
       if (this.$session.exists("gameNo")) {
@@ -104,11 +116,24 @@ export default {
           this.updateNotificationsStatus();
         }
         this.getNotifications();
-        this.deleteRejectedRequest()
+        this.deleteRejectedRequest();
       }
     }
   },
+
   methods: {
+    addOnlineStatusEventListener() {
+      window.addEventListener("online", this.updateOnlineStatus);
+      window.addEventListener("offline", this.updateOnlineStatus);
+    },
+    removeOnlineStatusEventListener() {
+      window.removeEventListener("online", this.updateOnlineStatus);
+      window.removeEventListener("offline", this.updateOnlineStatus);
+    },
+    updateOnlineStatus(e) {
+      const { type } = e;
+      this.connectionStatus = type === "online";
+    },
     clearNotifications() {
       this.$session.set("notificationCount", 0);
       this.notificationCount = this.$session.get("notificationCount");
@@ -126,7 +151,7 @@ export default {
       );
       if (notificationIndex === -1) {
         this.notificationIdList.push(id);
-      } 
+      }
       this.$session.set("notificationCount", this.notificationIdList.length);
       this.notificationCount = this.$session.get("notificationCount");
     },
@@ -158,7 +183,7 @@ export default {
     deleteRejectedRequest() {
       db.collection("notifications")
         .where("receiverEmail", "==", this.currentUser.email)
-        .where("seenStatus", "==",true)
+        .where("seenStatus", "==", true)
         .where("statusCode", "==", 2)
         .get()
         .then(snapshot => {
@@ -264,6 +289,9 @@ export default {
   .brand-text {
     font-size: 0.5em;
   }
+}
+.vue-notification-group {
+  margin-top: 64px;
 }
 </style>
 
