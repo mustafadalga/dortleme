@@ -55,7 +55,7 @@ export default {
       password: null,
       password2: null,
       username: null,
-      feedback: null,
+      feedback: null
     };
   },
   methods: {
@@ -112,44 +112,6 @@ export default {
         });
       }
     },
-    createUserScoreSystem() {
-      db.collection("scores").add({
-        email: this.email,
-        username: this.username,
-        score: 0
-      });
-    },
-    isUsernameExists() {
-      return new Promise((resolve, reject) => {
-        db.collection("users")
-          .where("username", "==", this.username)
-          .get()
-          .then(doc => {
-            if (doc.size > 0) {
-              return true;
-            } else {
-              return false;
-            }
-          })
-          .then(value => resolve(value))
-          .catch(error => reject(error));
-      });
-    },
-    verifyEmail() {
-      var user = firebase.auth().currentUser;
-      var that = this;
-
-      var actionCodeSettings = {
-        url: "https://dortleme.firebaseapp.com/login",
-        handleCodeInApp: true
-      };
-      user
-        .sendEmailVerification(actionCodeSettings)
-        .then(function() {})
-        .catch(function(error) {
-          that.feedback = error.message;
-        });
-    },
     allFieldFull() {
       if (this.username && this.email && this.password && this.password2) {
         return true;
@@ -170,6 +132,44 @@ export default {
       } else {
         return false;
       }
+    },
+    isUsernameExists() {
+      return new Promise((resolve, reject) => {
+        db.collection("users")
+          .where("username", "==", this.username)
+          .get()
+          .then(doc => {
+            if (doc.size > 0) {
+              return true;
+            } else {
+              return false;
+            }
+          })
+          .then(value => resolve(value))
+          .catch(error => reject(error));
+      });
+    },
+    createUserScoreSystem() {
+      db.collection("scores").add({
+        email: this.email,
+        username: this.username,
+        score: 0
+      });
+    },
+    verifyEmail() {
+      var user = firebase.auth().currentUser;
+      var that = this;
+
+      var actionCodeSettings = {
+        url: "https://dortleme.firebaseapp.com/login",
+        handleCodeInApp: true
+      };
+      user
+        .sendEmailVerification(actionCodeSettings)
+        .then(function() {})
+        .catch(function(error) {
+          that.feedback = error.message;
+        });
     }
   }
 };

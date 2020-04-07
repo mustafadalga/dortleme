@@ -1,5 +1,3 @@
-
-
 <template>
   <div class="exit-game-confirm-modal">
     <div id="modal1" class="modal"   :class="animatedCSS ? 'animated bounceInDown': 'animated bounceOutUp'">

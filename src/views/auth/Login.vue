@@ -139,7 +139,6 @@ export default {
           } else {
             that.feedback = error.message;
           }
-          //  that.feedback ="Doğrulama bağlantısı gönderilme sırasında hata oluştu.Tekrar deneyiniz";
         });
     },
     defineCurrentUserData() {

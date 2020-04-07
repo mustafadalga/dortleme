@@ -3,7 +3,7 @@
     <Navbar />
     <div class="ratings container">
       <div class="card">
-        <h4 class="heading center deep-purple-text">Ratings</h4>
+        <h4 class="heading center deep-purple-text">Puan Durumu</h4>
 
         <ul class="collection">
           <li class="collection-item row font-bold">
@@ -32,7 +32,6 @@ import { library } from "@fortawesome/fontawesome-svg-core";
 
 library.add(faUser);
 import db from "@/firebase/init";
-//import firebase from "firebase";
 import Navbar from "@/components/Navbar";
 
 export default {

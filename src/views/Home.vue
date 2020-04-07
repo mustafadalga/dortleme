@@ -3,7 +3,7 @@
     <Navbar />
     <div class="home container">
       <div class="card">
-        <div  >
+        <div style="display:none" >
           <a class="waves-effect waves-light btn-large" @click="dbreset">
             <i class="material-icons left">all_out</i>game_users
           </a>
@@ -206,6 +206,8 @@ export default {
         return user.user_id !== userId;
       });
     },
+
+    // temporary methods
     dbreset() {
       var jobskill_query = db.collection("game_users");
       jobskill_query.get().then(function(querySnapshot) {

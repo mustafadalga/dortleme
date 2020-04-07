@@ -1,5 +1,3 @@
-
-
 <template>
   <div class="internet-connection-modal">
     <div

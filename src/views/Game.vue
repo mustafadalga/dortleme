@@ -1,7 +1,7 @@
 <template>
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
-    <button @click="dbreset">fdsfdsfsd</button>
+
     <div class="container center" style="margin-top:1em">
       <div class="row">
         <div class="col s6 m3">
@@ -166,239 +166,75 @@ export default {
         is_play: status
       });
     },
-    movementSoundEffect() {
-      var sound = new Audio(MovementSoundFile);
-      sound.play();
-    },
-    winnerSoundEffect() {
-      var sound = new Audio(WinnerSoundFile);
-      sound.play();
-    },
-    createMovementWaitStopWatch() {
-      return new Promise((resolve, reject) => {
-        let now = new Date();
-        let waitingTime = 10 * 1000;
-        let due = new Date(now.getTime() + waitingTime);
-        db.collection("game_waits")
-          .add({
-            gameNo: this.gameNo,
-            movingPlayer: this.currentUser.email,
-            due: due
-          })
-          .then(() => resolve(true))
-          .catch(() => reject(false));
-      });
-    },
-    getRemainingTime(datetime) {
-      let now = datetime.now.seconds;
-      let due = datetime.due.seconds;
-      return due - now;
-    },
-    calcMovementRemainingTime(dueSeconds) {
-      if (!this.isGameOver) {
-        window.clearTimeout(this.timeoutHandleMove);
-        let due = new Date(dueSeconds * 1000).getTime();
-        let now = new Date().getTime();
-        let remainingTime = due - now;
-        this.moveScaleCSS = "scale-in";
-        this.isMoveStopwatchExpired = false;
-        if (remainingTime > 0) {
-          var date = new Date(remainingTime);
-          this.moveCountDown = this.createRemainingTimeFormat(date);
-          this.timeoutHandleMove = setTimeout(() => {
-            this.calcMovementRemainingTime(dueSeconds);
-            //     console.log(this.moveCountDown);
-            //   console.log(this.isOpenMoveCountDownAlert);
-          }, 1000);
-        } else {
-          window.clearTimeout(this.timeoutHandleMove);
-          if (!this.isMoveStopwatchExpired) {
-            //   this.isOpenMoveCountDownAlert=false
-            this.moveScaleCSS = "scale-out";
-            this.isMoveStopwatchExpired = true;
-            this.changePlayer();
-
-            setTimeout(() => {
-              //  this.isOpenMoveCountDownAlert=true
-              this.moveScaleCSS = "scale-in";
-              //this.isMoveStopwatchExpired = false;
-            }, 1000);
-            //    console.log(this.moveOrder);
-            //  console.log(this.currentUser.email);
-
-            if (this.moveOrder === this.currentUser.email) {
-              console.log("silindi mi ?");
-              this.changeMoveOrder();
-              this.deleteMovementWaitStopWatch().then(() => {
-                console.log("silindi mi ?");
-                setTimeout(() => {
-                  this.createMovementWaitStopWatch();
-                }, 3000);
-              });
-            }
-            console.log("süre bitti.");
+    whichPlayerStart() {
+      let ref = db.collection("game_rooms").doc(this.gameNo);
+      ref
+        .get()
+        .then(doc => {
+          this.startingPlayer = doc.data().whichPlayerStart;
+          this.moveOrder = doc.data().whichPlayerStart;
+        })
+        .then(() => {
+          if (this.moveOrder == this.currentUser.email) {
+            this.activePlayer = 1;
+          } else {
+            this.activePlayer = 2;
           }
-        }
-      }
+        })
+        .then(() => {
+          this.getMoveOrder();
+        });
     },
-    getMovementWaitStopWatch() {
-      db.collection("game_waits").onSnapshot(snapshot => {
+    getWinnerPlayer() {
+      db.collection("game_rooms").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
             (change.type == "modified" || change.type == "added") &&
-            change.doc.data().gameNo == this.gameNo &&
-            change.doc.data().movingPlayer
+            change.doc.id == this.gameNo &&
+            change.doc.data().winnerPlayer &&
+            change.doc.data().gameStatusNo === 5
           ) {
-            let dueSeconds = change.doc.data().due.seconds;
-            console.log("eee");
-            this.calcMovementRemainingTime(dueSeconds);
+            this.winnerPlayer = change.doc.data().winnerPlayer;
+
+            if (change.doc.data().isPlayersCompleted) {
+              this.winnerSoundEffect();
+              this.isGameOver = true;
+              this.isOpenMoveCountDownAlert = false;
+            }
+          } else if (
+            (change.type == "modified" || change.type == "added") &&
+            change.doc.id == this.gameNo &&
+            change.doc.data().winnerPlayer === null &&
+            change.doc.data().gameStatusNo === 0 &&
+            this.isGameOver
+          ) {
+            this.winnerPlayer = null;
+            this.notificationAlert(
+              "success",
+              "Yeni Oyun",
+              "Yeni oyun başladı."
+            );
+            this.resetGameData();
+            this.whichPlayerStart();
           }
         });
       });
     },
-
-    deleteMovementWaitStopWatch() {
-      return new Promise((resolve, reject) => {
-        db.collection("game_waits")
-          .where("gameNo", "==", this.gameNo)
-          .where("movingPlayer", "in", [
-            this.currentUser.email,
-            this.opponent.email
-          ])
-          .get()
-          .then(docs => {
-            docs.forEach(doc => {
-              db.collection("game_waits")
-                .doc(doc.id)
-                .delete();
-            });
-          })
-          .then(() => resolve(true))
-          .catch(() => reject(false));
-      });
-    },
-
-    createRemainingTimeFormat(date) {
-      let minutes =
-        date.getMinutes() > 9 ? date.getMinutes() : "0" + date.getMinutes();
-      let seconds =
-        date.getSeconds() > 9 ? date.getSeconds() : "0" + date.getSeconds();
-      return "00:" + minutes + ":" + seconds;
-    },
-
-    calcOpponentRemainingTime(dueSeconds) {
-      window.clearTimeout(this.timeoutHandleGameStart);
-      let due = new Date(dueSeconds * 1000).getTime();
-      let now = new Date().getTime();
-      let remainingTime = due - now;
-      if (remainingTime > 0) {
-        var date = new Date(remainingTime);
-        this.gameStartCountDown = this.createRemainingTimeFormat(date);
-        this.timeoutHandleGameStart = setTimeout(() => {
-          this.calcOpponentRemainingTime(dueSeconds);
-          console.log(this.gameStartCountDown);
-        }, 1000);
-      } else {
-        this.isOpponentStopwatchExpired = true;
-        window.clearTimeout(this.timeoutHandleGameStart);
-        this.deleteOpponentWaitStopWatch();
-        this.increaseScore(this.opponent.email);
-        this.deleteGame();
-        this.deleteNotifications();
-        this.updatePlayersPlayingStatus(false);
-        this.winnerPlayer = this.currentUser.email;
-        this.gameStatusNo = 4;
-      }
-    },
-    getOpponentWaitStopWatch() {
-      db.collection("game_waits")
-        .where("gameNo", "==", this.gameNo)
-        .where("waitingPlayer", "==", this.currentUser.email)
-        .get()
-        .then(docs => {
-          docs.forEach(doc => {
-            let dueSeconds = doc.data().due.seconds;
-            this.calcOpponentRemainingTime(dueSeconds);
-          });
-        });
-    },
-    checkGameRoom() {
-      db.collection("game_rooms")
-        .doc(this.gameNo)
-        .get()
-        .then(doc => {
-          if (!doc.exists) {
-            this.updatePlayersPlayingStatus(false);
-            this.deleteGameSession();
-            this.$router.push({ name: "Home" });
+    getScore() {
+      db.collection("scores").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (
+            (change.type == "added" || change.type == "modified") &&
+            change.doc.data().email == this.currentUser.email
+          ) {
+            this.currentUserSkor = change.doc.data().score;
+          } else if (
+            (change.type == "added" || change.type == "modified") &&
+            change.doc.data().email == this.opponent.email
+          ) {
+            this.opponentScore = change.doc.data().score;
           }
         });
-    },
-    deleteOpponentWaitStopWatch() {
-      return new Promise((resolve, reject) => {
-        db.collection("game_waits")
-          .where("gameNo", "==", this.gameNo)
-          .where("waitingPlayer", "in", [
-            this.currentUser.email,
-            this.opponent.email
-          ])
-          .get()
-          .then(docs => {
-            docs.forEach(doc => {
-              db.collection("game_waits")
-                .doc(doc.id)
-                .delete();
-            });
-          })
-          .then(() => resolve(true))
-          .catch(() => reject(false));
-      });
-    },
-    PlayersCompletionStatusAlert() {
-      if (
-        this.$session.get("isPlayersCompleted") === undefined ||
-        this.$session.get("isPlayersCompleted") === false
-      ) {
-        this.notificationAlert(
-          "success",
-          "Kadro Tamamlandı",
-          "Rakip oyuncu oyuna dahil oldu.Oyun başladı."
-        );
-      }
-    },
-    checkOpponentWaitStopWatch() {
-      return new Promise((resolve, reject) => {
-        db.collection("game_waits")
-          .where("gameNo", "==", this.gameNo)
-          .where("waitingPlayer", "==", this.currentUser.email)
-          .get()
-          .then(doc => {
-            console.log("Adet:" + doc.size);
-            if (doc.size > 0) {
-              return true;
-            } else {
-              return false;
-            }
-          })
-          .then(status => resolve(status))
-          .catch(error => reject(error));
-      });
-    },
-    checkMovementWaitStopWatch() {
-      return new Promise((resolve, reject) => {
-        db.collection("game_waits")
-          .where("gameNo", "==", this.gameNo)
-          .where("movingPlayer", "==", this.currentUser.email)
-          .get()
-          .then(doc => {
-            if (doc.size > 0) {
-              return true;
-            } else {
-              return false;
-            }
-          })
-          .then(status => resolve(status))
-          .catch(error => reject(error));
       });
     },
     checkPlayersCompletionStatus() {
@@ -422,17 +258,14 @@ export default {
                 if (
                   change.doc.data().whichPlayerStart === this.currentUser.email
                 ) {
-                  console.log("bekleniliyor...");
-                  this.checkOpponentWaitStopWatch().then(status => {
-                    console.log(status);
-                    if (status === true) {
+                  this.checkOpponentWaitStopWatch().then(opponentStatus => {
+                    if (opponentStatus === true) {
                       this.deleteOpponentWaitStopWatch().then(() => {
-                        console.log("bekleme süresi oluşturuldu taşıma.");
                         this.createMovementWaitStopWatch();
                       });
-                    } else if (status === false) {
-                      this.checkMovementWaitStopWatch(status => {
-                        if (status === false) {
+                    } else if (opponentStatus === false) {
+                      this.checkMovementWaitStopWatch().then(movementStatus => {
+                        if (movementStatus === false) {
                           this.createMovementWaitStopWatch();
                         }
                       });
@@ -454,7 +287,6 @@ export default {
               if (this.gameStatusNo !== 0) {
                 this.gameStartScaleCSS = "scale-in";
                 this.$session.set("isPlayersCompleted", false);
-                console.log(this.$session.get("isPlayersCompleted"));
               }
             } else if (
               (change.type === "added" || change.type === "modified") &&
@@ -482,6 +314,243 @@ export default {
           });
         });
     },
+    getOpponentWaitStopWatch() {
+      db.collection("game_waits")
+        .where("gameNo", "==", this.gameNo)
+        .where("waitingPlayer", "==", this.currentUser.email)
+        .get()
+        .then(docs => {
+          docs.forEach(doc => {
+            let dueSeconds = doc.data().due.seconds;
+            this.calcOpponentRemainingTime(dueSeconds);
+          });
+        });
+    },
+    deleteOpponentWaitStopWatch() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_waits")
+          .where("gameNo", "==", this.gameNo)
+          .where("waitingPlayer", "in", [
+            this.currentUser.email,
+            this.opponent.email
+          ])
+          .get()
+          .then(docs => {
+            docs.forEach(doc => {
+              db.collection("game_waits")
+                .doc(doc.id)
+                .delete();
+            });
+          })
+          .then(() => resolve(true))
+          .catch(() => reject(false));
+      });
+    },
+    createMovementWaitStopWatch() {
+      return new Promise((resolve, reject) => {
+        let now = new Date();
+        let waitingTime = 20 * 1000;
+        let due = new Date(now.getTime() + waitingTime);
+        db.collection("game_waits")
+          .add({
+            gameNo: this.gameNo,
+            movingPlayer: this.currentUser.email,
+            due: due
+          })
+          .then(() => resolve(true))
+          .catch(() => reject(false));
+      });
+    },
+    getMovementWaitStopWatch() {
+      db.collection("game_waits").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (
+            (change.type == "modified" || change.type == "added") &&
+            change.doc.data().gameNo == this.gameNo &&
+            change.doc.data().movingPlayer
+          ) {
+            let dueSeconds = change.doc.data().due.seconds;
+            this.calcMovementRemainingTime(dueSeconds);
+          }
+        });
+      });
+    },
+    deleteMovementWaitStopWatch() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_waits")
+          .where("gameNo", "==", this.gameNo)
+          .where("movingPlayer", "in", [
+            this.currentUser.email,
+            this.opponent.email
+          ])
+          .get()
+          .then(docs => {
+            docs.forEach(doc => {
+              db.collection("game_waits")
+                .doc(doc.id)
+                .delete();
+            });
+          })
+          .then(() => resolve(true))
+          .catch(() => reject(false));
+      });
+    },
+    checkOpponentWaitStopWatch() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_waits")
+          .where("gameNo", "==", this.gameNo)
+          .where("waitingPlayer", "==", this.currentUser.email)
+          .get()
+          .then(doc => {
+            if (doc.size > 0) {
+              return true;
+            } else {
+              return false;
+            }
+          })
+          .then(status => resolve(status))
+          .catch(error => reject(error));
+      });
+    },
+    checkMovementWaitStopWatch() {
+      return new Promise((resolve, reject) => {
+        db.collection("game_waits")
+          .where("gameNo", "==", this.gameNo)
+          .where("movingPlayer", "in", [
+            this.currentUser.email,
+            this.opponent.email
+          ])
+          .get()
+          .then(doc => {
+            if (doc.size > 0) {
+              return true;
+            } else {
+              return false;
+            }
+          })
+          .then(status => resolve(status))
+          .catch(error => reject(error));
+      });
+    },
+    calcMovementRemainingTime(dueSeconds) {
+      if (!this.isGameOver) {
+        window.clearTimeout(this.timeoutHandleMove);
+        let due = new Date(dueSeconds * 1000).getTime();
+        let now = new Date().getTime();
+        let remainingTime = due - now;
+        this.moveScaleCSS = "scale-in";
+        this.isMoveStopwatchExpired = false;
+        if (remainingTime > 0) {
+          var date = new Date(remainingTime);
+          this.moveCountDown = this.createRemainingTimeFormat(date);
+          this.timeoutHandleMove = setTimeout(() => {
+            this.calcMovementRemainingTime(dueSeconds);
+          }, 1000);
+        } else {
+          window.clearTimeout(this.timeoutHandleMove);
+          if (!this.isMoveStopwatchExpired) {
+            this.moveScaleCSS = "scale-out";
+            this.isMoveStopwatchExpired = true;
+            this.changePlayer();
+
+            setTimeout(() => {
+              this.moveScaleCSS = "scale-in";
+            }, 1000);
+
+            if (this.moveOrder === this.currentUser.email) {
+              this.changeMoveOrder();
+              this.deleteMovementWaitStopWatch().then(() => {
+                setTimeout(() => {
+                  this.createMovementWaitStopWatch();
+                }, 3000);
+              });
+            }
+          }
+        }
+      }
+    },
+    calcOpponentRemainingTime(dueSeconds) {
+      window.clearTimeout(this.timeoutHandleGameStart);
+      let due = new Date(dueSeconds * 1000).getTime();
+      let now = new Date().getTime();
+      let remainingTime = due - now;
+      if (remainingTime > 0) {
+        var date = new Date(remainingTime);
+        this.gameStartCountDown = this.createRemainingTimeFormat(date);
+        this.timeoutHandleGameStart = setTimeout(() => {
+          this.calcOpponentRemainingTime(dueSeconds);
+        }, 1000);
+      } else {
+        this.isOpponentStopwatchExpired = true;
+        window.clearTimeout(this.timeoutHandleGameStart);
+        this.deleteOpponentWaitStopWatch();
+        this.increaseScore(this.opponent.email);
+        this.deleteGame();
+        this.deleteNotifications();
+        this.updatePlayersPlayingStatus(false);
+        this.winnerPlayer = this.currentUser.email;
+        this.gameStatusNo = 4;
+      }
+    },
+    createRemainingTimeFormat(date) {
+      let minutes =
+        date.getMinutes() > 9 ? date.getMinutes() : "0" + date.getMinutes();
+      let seconds =
+        date.getSeconds() > 9 ? date.getSeconds() : "0" + date.getSeconds();
+      return "00:" + minutes + ":" + seconds;
+    },
+
+    getMovesList() {
+      db.collection("movements")
+        .where("gameNo", "==", this.gameNo)
+        .onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            if (change.type === "added" || change.type === "modified") {
+              let doc = change.doc.data();
+              let movementIndex = this.getMoveIndex(doc.row, doc.col);
+              if (!this.checkMovementIndex(movementIndex)) {
+                if (doc.color.includes("animated")) {
+                  this.movements.push({
+                    row: doc.row,
+                    col: doc.col,
+                    color: doc.color
+                  });
+                  this.activePlayer = doc.activePlayer;
+                  this.playerNo = doc.playerNo;
+                  this.increasePlayerMoves();
+                }
+              } else {
+                this.movements[movementIndex].color = doc.color;
+              }
+            }
+          });
+        });
+    },
+    checkGameRoom() {
+      db.collection("game_rooms")
+        .doc(this.gameNo)
+        .get()
+        .then(doc => {
+          if (!doc.exists) {
+            this.updatePlayersPlayingStatus(false);
+            this.deleteGameSession();
+            this.$router.push({ name: "Home" });
+          }
+        });
+    },
+    PlayersCompletionStatusAlert() {
+      if (
+        this.$session.get("isPlayersCompleted") === undefined ||
+        this.$session.get("isPlayersCompleted") === false
+      ) {
+        this.notificationAlert(
+          "success",
+          "Kadro Tamamlandı",
+          "Rakip oyuncu oyuna dahil oldu.Oyun başladı."
+        );
+      }
+    },
+
     notificationAlert(messageType, title, text) {
       this.$notify({
         group: "alert",
@@ -588,6 +657,15 @@ export default {
       this.$session.remove("gameNo");
       this.$session.remove("isPlayersCompleted");
     },
+    newGame() {
+      this.deleteGameMoves().then(() => {
+        this.resetWinnerPlayer();
+        this.changeGameStatusNo(0);
+      });
+      setTimeout(() => {
+        this.createMovementWaitStopWatch();
+      }, 1500);
+    },
     deleteGameMoves() {
       return new Promise((resolve, reject) => {
         db.collection("movements")
@@ -604,17 +682,21 @@ export default {
           .catch(error => reject(error));
       });
     },
-    newGame() {
-      this.deleteGameMoves().then(() => {
-        this.resetWinnerPlayer();
-        this.changeGameStatusNo(0);
+    resetWinnerPlayer() {
+      return new Promise((resolve, reject) => {
+        if (this.winnerPlayer) {
+          db.collection("game_rooms")
+            .doc(this.gameNo)
+            .update({
+              winnerPlayer: null,
+              moveOrder: this.currentUser.email
+            })
+            .then(() => resolve(true))
+            .catch(() => reject(false));
+        }
       });
-      setTimeout(() => {
-        this.createMovementWaitStopWatch();
-      }, 1500);
     },
     resetGameData() {
-      console.log("Tüm veriler sıfırlandı");
       this.moveCountDown = null;
       this.isMoveStopwatchExpired = false;
       this.isOpenMoveCountDownAlert = true;
@@ -622,25 +704,6 @@ export default {
       this.gameStatusNo = null;
       this.quadPositions = [];
       this.movements = [];
-    },
-    whichPlayerStart() {
-      let ref = db.collection("game_rooms").doc(this.gameNo);
-      ref
-        .get()
-        .then(doc => {
-          this.startingPlayer = doc.data().whichPlayerStart;
-          this.moveOrder = doc.data().whichPlayerStart;
-        })
-        .then(() => {
-          if (this.moveOrder == this.currentUser.email) {
-            this.activePlayer = 1;
-          } else {
-            this.activePlayer = 2;
-          }
-        })
-        .then(() => {
-          this.getMoveOrder();
-        });
     },
     isItMyTurn() {
       if (this.moveOrder === this.currentUser.email) {
@@ -654,6 +717,41 @@ export default {
         return true;
       } else {
         return false;
+      }
+    },
+
+    makeMove(event) {
+      if (this.isMakeMove()) {
+        this.zIndexStyle = true;
+        setTimeout(() => {
+          this.zIndexStyle = false;
+        }, 1500);
+        this.movementSoundEffect();
+        const col = parseInt(event.target.attributes.col.value);
+        let bottomRow = this.findBottomRow(col);
+        if (bottomRow) {
+          this.row = bottomRow;
+          this.col = col;
+          this.color = this.getPlayerColor();
+          this.playerNo = this.activePlayer;
+          this.changePlayer();
+          this.saveMove();
+          this.changeMoveOrder();
+          window.clearTimeout(this.timeoutHandleMove);
+          if (!this.isMoveStopwatchExpired && this.winnerPlayer === null) {
+            this.isMoveStopwatchExpired = true;
+
+            this.deleteMovementWaitStopWatch().then(() => {
+              this.createMovementWaitStopWatch();
+            });
+          }
+        } else {
+          this.notificationAlert(
+            "error",
+            "Uyarı",
+            "Hamle yapmak istediğiniz satır dolu."
+          );
+        }
       }
     },
     isMakeMove() {
@@ -677,116 +775,38 @@ export default {
         return false;
       }
     },
-    makeMove(event) {
-      if (this.isMakeMove()) {
-        console.log(this.quadPositions.length);
-        this.zIndexStyle = true;
-        setTimeout(() => {
-          this.zIndexStyle = false;
-        }, 1500);
-        this.movementSoundEffect();
-        const col = parseInt(event.target.attributes.col.value);
-        let bottomRow = this.findBottomRow(col);
-        if (bottomRow) {
-          this.row = bottomRow;
-          this.col = col;
-          this.color = this.getPlayerColor();
-          this.playerNo = this.activePlayer;
-          this.changePlayer();
-          this.saveMove();
-          this.changeMoveOrder();
-          window.clearTimeout(this.timeoutHandleMove);
-          if (!this.isMoveStopwatchExpired && this.winnerPlayer === null) {
-            this.isMoveStopwatchExpired = true;
-            console.log("oluşturuldu");
-            this.deleteMovementWaitStopWatch().then(() => {
-              this.createMovementWaitStopWatch();
-            });
-          }
-        } else {
-          this.notificationAlert(
-            "error",
-            "Uyarı",
-            "Hamle yapmak istediğiniz satır dolu."
-          );
+    findBottomRow(col) {
+      for (let row = 6; row > 0; row--) {
+        let cellUsageStatus = this.isCellUsed(row, col);
+        if (!cellUsageStatus) {
+          return row;
         }
       }
+      return false;
     },
-    getMovesList() {
-      db.collection("movements")
-        .where("gameNo", "==", this.gameNo)
-        .onSnapshot(snapshot => {
-          snapshot.docChanges().forEach(change => {
-            if (change.type === "added" || change.type === "modified") {
-              let doc = change.doc.data();
-
-              let movementIndex = this.getMoveIndex(doc.row, doc.col);
-              if (!this.checkMovementIndex(movementIndex)) {
-                //let color = doc.color;
-
-                if (doc.color.includes("animated")) {
-                  this.movements.push({
-                    row: doc.row,
-                    col: doc.col,
-                    color: doc.color
-                  });
-                  this.activePlayer = doc.activePlayer;
-                  this.playerNo = doc.playerNo;
-                  this.increasePlayerMoves();
-                } else {
-                  console.log("renk yok");
-                }
-
-                console.log(this.movements.length);
-                console.log(this.quadPositions.length);
-                console.log(doc.row, doc.col, doc.color);
-              } else {
-                console.log("renkliler");
-                this.movements[movementIndex].color = doc.color;
-              }
-            }
-          });
-        });
+    movementSoundEffect() {
+      var sound = new Audio(MovementSoundFile);
+      sound.play();
     },
-    changeMoveOrder() {
-      var ref = db.collection("game_rooms").doc(this.gameNo);
-      ref.update({
-        moveOrder: this.opponent.email
-      });
-    },
-    getMoveOrder() {
-      db.collection("game_rooms")
-        .where("gameNo", "==", this.gameNo)
-        .onSnapshot(snapshot => {
-          snapshot.docChanges().forEach(change => {
-            if (change.type == "modified" || change.type == "added") {
-              //console.log(change.doc.data().moveOrder);
-              this.moveOrder = change.doc.data().moveOrder;
-              //console.log(this.moveOrder);
-            }
-          });
-        });
-    },
-    getLastMovement() {
-      db.collection("movements")
-        .orderBy("timestamp")
-        .limitToLast(1)
-        .get()
-        .then(() => {
-          console.log("Hamle Sayısı:" + this.movements.length);
-          this.isGameWinned(this.row, this.col);
-        });
-    },
-    getMoveIndex(row, col) {
-      return this.movements.findIndex(movement => {
-        return movement.row === row && movement.col === col;
-      });
-    },
-    checkMovementIndex(movementIndex) {
-      if (movementIndex === -1) {
-        return false;
+    getPlayerColor() {
+      if (this.currentUser.email === this.startingPlayer) {
+        return "bg-red animated bounceInDown";
       } else {
-        return true;
+        return "bg-green  animated bounceInDown";
+      }
+      /*
+      if (this.activePlayer == 1) {
+        return "bg-red animated bounceInDown";
+      } else if (this.activePlayer == 2) {
+        return "bg-green  animated bounceInDown";
+      }
+      */
+    },
+    changePlayer() {
+      if (this.activePlayer == 1) {
+        this.activePlayer = 2;
+      } else if (this.activePlayer == 2) {
+        this.activePlayer = 1;
       }
     },
     saveMove() {
@@ -807,17 +827,50 @@ export default {
           });
       }
     },
-    dbreset() {
-      this.movements = [];
-      var jobskill_query = db
-        .collection("movements")
-        .where("gameNo", "==", this.gameNo);
-      jobskill_query.get().then(function(querySnapshot) {
-        querySnapshot.forEach(function(doc) {
-          doc.ref.delete();
-        });
+    changeMoveOrder() {
+      var ref = db.collection("game_rooms").doc(this.gameNo);
+      ref.update({
+        moveOrder: this.opponent.email
       });
     },
+    winnerSoundEffect() {
+      var sound = new Audio(WinnerSoundFile);
+      sound.play();
+    },
+
+    getMoveOrder() {
+      db.collection("game_rooms")
+        .where("gameNo", "==", this.gameNo)
+        .onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            if (change.type == "modified" || change.type == "added") {
+              this.moveOrder = change.doc.data().moveOrder;
+            }
+          });
+        });
+    },
+    getLastMovement() {
+      db.collection("movements")
+        .orderBy("timestamp")
+        .limitToLast(1)
+        .get()
+        .then(() => {
+          this.isGameWinned(this.row, this.col);
+        });
+    },
+    getMoveIndex(row, col) {
+      return this.movements.findIndex(movement => {
+        return movement.row === row && movement.col === col;
+      });
+    },
+    checkMovementIndex(movementIndex) {
+      if (movementIndex === -1) {
+        return false;
+      } else {
+        return true;
+      }
+    },
+
     checkCross(rowNo, colNo) {
       this.quadPositions = [];
       let cellCount = 0;
@@ -997,21 +1050,7 @@ export default {
       }
       return cellCount;
     },
-    getPlayerColor() {
-      //  if (this.currentUser.email === this.startingPlayer ) {
-      //  console.log("kırmızı")
-      //     return "bg-red animated bounceInDown";
-      //   } else{
-      //     console.log("sarı")
-      //     return "bg-green  animated bounceInDown";
-      //   }
 
-      if (this.activePlayer == 1) {
-        return "bg-red animated bounceInDown";
-      } else if (this.activePlayer == 2) {
-        return "bg-green  animated bounceInDown";
-      }
-    },
     isConnectionFourCompleted(cellCount) {
       if (cellCount == 4) {
         return true;
@@ -1019,104 +1058,7 @@ export default {
         return false;
       }
     },
-    addWinnerPlayer(player) {
-      db.collection("game_rooms")
-        .doc(this.gameNo)
-        .update({
-          winnerPlayer: player
-        });
-    },
-    resetWinnerPlayer() {
-      return new Promise((resolve, reject) => {
-        if (this.winnerPlayer) {
-          db.collection("game_rooms")
-            .doc(this.gameNo)
-            .update({
-              winnerPlayer: null,
-              moveOrder: this.currentUser.email
-            })
-            .then(() => resolve(true))
-            .catch(() => reject(false));
-        }
-      });
-    },
-    getWinnerPlayer() {
-      db.collection("game_rooms").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (
-            (change.type == "modified" || change.type == "added") &&
-            change.doc.id == this.gameNo &&
-            change.doc.data().winnerPlayer &&
-            change.doc.data().gameStatusNo === 5
-          ) {
-            this.winnerPlayer = change.doc.data().winnerPlayer;
-            console.log("kazanan oyuncu getir");
-            if (change.doc.data().isPlayersCompleted) {
-              this.winnerSoundEffect();
-              this.isGameOver = true;
-              this.isOpenMoveCountDownAlert = false;
-            }
-          } else if (
-            (change.type == "modified" || change.type == "added") &&
-            change.doc.id == this.gameNo &&
-            change.doc.data().winnerPlayer === null &&
-            change.doc.data().gameStatusNo === 0 &&
-            this.isGameOver
-          ) {
-            console.log("Yeni oyun veri sıfırla");
-            //console.log(change.doc.data().winnerPlayer);
-            this.winnerPlayer = null;
-            this.notificationAlert(
-              "success",
-              "Yeni Oyun",
-              "Yeni oyun başladı."
-            );
-            this.resetGameData();
-            this.whichPlayerStart();
-          }
-        });
-      });
-    },
-    increaseScore(playerEmail) {
-      db.collection("scores")
-        .where("email", "==", playerEmail)
-        .get()
-        .then(querySnapshot => {
-          querySnapshot.forEach(doc => {
-            db.collection("scores")
-              .doc(doc.id)
-              .update({
-                score: doc.data().score + 10
-              });
-          });
-        });
-    },
-    getScore() {
-      db.collection("scores").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (
-            (change.type == "added" || change.type == "modified") &&
-            change.doc.data().email == this.currentUser.email
-          ) {
-            this.currentUserSkor = change.doc.data().score;
-          } else if (
-            (change.type == "added" || change.type == "modified") &&
-            change.doc.data().email == this.opponent.email
-          ) {
-            this.opponentScore = change.doc.data().score;
-          }
-        });
-      });
-    },
-    findBottomRow(col) {
-      for (let row = 6; row > 0; row--) {
-        let cellUsageStatus = this.isCellUsed(row, col);
-        if (!cellUsageStatus) {
-          return row;
-        }
-      }
-      return false;
-    },
+
     isCellUsed(row, col) {
       if (this.getCellColor(row, col) > 0) {
         return true;
@@ -1147,13 +1089,7 @@ export default {
       }
       return "";
     },
-    changePlayer() {
-      if (this.activePlayer == 1) {
-        this.activePlayer = 2;
-      } else if (this.activePlayer == 2) {
-        this.activePlayer = 1;
-      }
-    },
+
     increasePlayerMoves() {
       if (this.playerNo == 1) {
         this.redMoveCount++;
@@ -1161,25 +1097,7 @@ export default {
         this.greenMoveCount++;
       }
     },
-    startQuadAnimation() {
-      console.log("animasyo başladıss");
-      this.quadPositions.forEach(cell => {
-        db.collection("movements")
-          .where("gameNo", "==", this.gameNo)
-          .where("row", "==", cell.row)
-          .where("col", "==", cell.col)
-          .get()
-          .then(querySnapshot =>
-            querySnapshot.forEach(doc => {
-              db.collection("movements")
-                .doc(doc.id)
-                .update({
-                  color: "dortluAnimasyon"
-                });
-            })
-          );
-      });
-    },
+
     gameCompleted() {
       this.isGameOver = true;
       this.startQuadAnimation();
@@ -1199,7 +1117,45 @@ export default {
       this.increaseScore(this.currentUser.email);
       this.deleteMovementWaitStopWatch();
     },
-
+    startQuadAnimation() {
+      this.quadPositions.forEach(cell => {
+        db.collection("movements")
+          .where("gameNo", "==", this.gameNo)
+          .where("row", "==", cell.row)
+          .where("col", "==", cell.col)
+          .get()
+          .then(querySnapshot =>
+            querySnapshot.forEach(doc => {
+              db.collection("movements")
+                .doc(doc.id)
+                .update({
+                  color: "dortluAnimasyon"
+                });
+            })
+          );
+      });
+    },
+    addWinnerPlayer(player) {
+      db.collection("game_rooms")
+        .doc(this.gameNo)
+        .update({
+          winnerPlayer: player
+        });
+    },
+    increaseScore(playerEmail) {
+      db.collection("scores")
+        .where("email", "==", playerEmail)
+        .get()
+        .then(querySnapshot => {
+          querySnapshot.forEach(doc => {
+            db.collection("scores")
+              .doc(doc.id)
+              .update({
+                score: doc.data().score + 10
+              });
+          });
+        });
+    },
     isGameWinned(row, col) {
       var isCheck = false;
       if (this.playerNo == 1) {
@@ -1221,6 +1177,17 @@ export default {
         this.isGameOver = true;
         this.changeGameStatusNo(6);
       }
+    },
+    dbreset() {
+      this.movements = [];
+      var jobskill_query = db
+        .collection("movements")
+        .where("gameNo", "==", this.gameNo);
+      jobskill_query.get().then(function(querySnapshot) {
+        querySnapshot.forEach(function(doc) {
+          doc.ref.delete();
+        });
+      });
     }
   }
 };

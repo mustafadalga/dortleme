@@ -87,8 +87,6 @@ router.beforeEach((to, from, next) => {
                     ref.get().then(doc => {
                         if (doc.id == gameNo) {
                             next()
-                        } else {
-                            //console.log("Geçersiz oyun odası!")
                         }
                     })
                 } else {

@@ -3,9 +3,9 @@
     <Navbar />
     <div class="notifications container">
       <div class="card">
-        <div class="row"  v-if="notifications.length<1" >
-          <div class="col s12 deep-purple white-text z-depth-2 scale-transition center p1" >
-              <p>Bildirim bulunmamaktadır</p>
+        <div class="row" v-if="notifications.length<1">
+          <div class="col s12 deep-purple white-text z-depth-2 scale-transition center p1">
+            <p>Bildirim bulunmamaktadır</p>
           </div>
         </div>
 
@@ -118,7 +118,7 @@ export default {
       acceptedRequests: [],
       rejectedRequests: [],
       notifications: [],
-      gameNo:null
+      gameNo: null
     };
   },
   computed: {
@@ -152,23 +152,24 @@ export default {
       });
   },
   methods: {
-    timestampFormat(timestamp) {
-      let time = format(timestamp);
-      time = time.replace("just now", "şimdi");
-      time = time.replace("ago", "önce");
-      time = time.replace("seconds", "saniye");
-      time = time.replace("second", "saniye");
-      time = time.replace("minutes", "dakika");
-      time = time.replace("minute", "dakika");
-      time = time.replace("hours", "saat");
-      time = time.replace("hour", "saat");
-      time = time.replace("days", "gün");
-      time = time.replace("day", "gün");
-      time = time.replace("weeks", "hafta");
-      time = time.replace("week", "hafta");
-      time = time.replace("years", "yıl");
-      time = time.replace("year", "yıl");
-      return time;
+    getNotifications() {
+      db.collection("notifications").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === "added") {
+            let doc = change.doc.data();
+            if (this.currentUser.email === doc.receiverEmail) {
+              this.notifications.push({
+                sender: doc.sender,
+                senderEmail: doc.senderEmail,
+                receiver: doc.receiver,
+                receiverEmail: doc.receiverEmail,
+                statusCode: doc.statusCode,
+                timestamp: doc.timestamp
+              });
+            }
+          }
+        });
+      });
     },
     acceptRequest(user) {
       db.collection("notifications").add({
@@ -202,29 +203,12 @@ export default {
         .where("timestamp", "==", user.timestamp)
         .get()
         .then(notifications => {
-          notifications.forEach(notification=>{
-            db.collection('notifications').doc(notification.id).delete()
-          })
+          notifications.forEach(notification => {
+            db.collection("notifications")
+              .doc(notification.id)
+              .delete();
+          });
         });
-    },
-    getNotifications() {
-      db.collection("notifications").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === "added") {
-            let doc = change.doc.data();
-            if (this.currentUser.email === doc.receiverEmail) {
-              this.notifications.push({
-                sender: doc.sender,
-                senderEmail: doc.senderEmail,
-                receiver: doc.receiver,
-                receiverEmail: doc.receiverEmail,
-                statusCode: doc.statusCode,
-                timestamp: doc.timestamp
-              });
-            }
-          }
-        });
-      });
     },
     newGame(user) {
       let opponent = {
@@ -257,6 +241,25 @@ export default {
           }
         });
     },
+    defineGameSession(opponent, gameNo) {
+      this.$session.set("opponentUser", opponent);
+      this.$session.set("gameNo", gameNo);
+      this.gameNo = gameNo;
+    },
+    isGameDefined() {
+      if (this.$session.exists("gameNo")) {
+        return true;
+      } else {
+        return false;
+      }
+    },
+    playersCompletionStatus() {
+      db.collection("game_rooms")
+        .doc(this.gameNo)
+        .update({
+          isPlayersCompleted: true
+        });
+    },
     deleteNotifications() {
       let opponent = this.$session.get("opponentUser");
       db.collection("notifications")
@@ -287,42 +290,6 @@ export default {
           this.redirectToGame();
         });
     },
-    isGameDefined() {
-      if (this.$session.exists("gameNo")) {
-        return true;
-      } else {
-        return false;
-      }
-    },
-    playersCompletionStatus() {
-      console.log(this.game)
-      db.collection("game_rooms")
-        .doc(this.gameNo)
-        .update({
-          isPlayersCompleted: true
-        });
-    },
-    defineGameSession(opponent, gameNo) {
-      this.$session.set("opponentUser", opponent);
-      this.$session.set("gameNo", gameNo);
-      this.gameNo = gameNo;
-    },
-    redirectToGame() {
-      this.$router.push({ name: "Game" });
-    },
-    createOpponentWaitStopWatch() {
-      let opponent = this.$session.get("opponentUser");
-      let now = new Date();
-      let waitingTime = 60 * 1000;
-      let due = new Date(now.getTime() + waitingTime);
-      db.collection("game_waits").add({
-        gameNo: this.gameNo,
-        expectedPlayer: opponent.email,
-        waitingPlayer: this.currentUser.email,
-        now: now,
-        due: due
-      });
-    },
     createGameRoom(opponent) {
       this.gameNo = Date.now().toString();
       let currentEmail = this.currentUser.email;
@@ -342,83 +309,118 @@ export default {
           this.createGameRoom(opponent);
         }
       });
+    },
+    createOpponentWaitStopWatch() {
+      let opponent = this.$session.get("opponentUser");
+      let now = new Date();
+      let waitingTime = 60 * 1000;
+      let due = new Date(now.getTime() + waitingTime);
+      db.collection("game_waits").add({
+        gameNo: this.gameNo,
+        expectedPlayer: opponent.email,
+        waitingPlayer: this.currentUser.email,
+        due: due
+      });
+    },
+    redirectToGame() {
+      this.$router.push({ name: "Game" });
+    },
+    timestampFormat(timestamp) {
+      let time = format(timestamp);
+      time = time.replace("just now", "şimdi");
+      time = time.replace("ago", "önce");
+      time = time.replace("seconds", "saniye");
+      time = time.replace("second", "saniye");
+      time = time.replace("minutes", "dakika");
+      time = time.replace("minute", "dakika");
+      time = time.replace("hours", "saat");
+      time = time.replace("hour", "saat");
+      time = time.replace("days", "gün");
+      time = time.replace("day", "gün");
+      time = time.replace("weeks", "hafta");
+      time = time.replace("week", "hafta");
+      time = time.replace("years", "yıl");
+      time = time.replace("year", "yıl");
+      return time;
     }
   }
 };
 </script>
 <style lang="css" scoped>
 .card {
-    padding: 1em;
+  padding: 1em;
 }
 
 .collection-item {
-    font-size: 1.5em;
-    display: flex !important;
-    align-items: center;
+  font-size: 1.5em;
+  display: flex !important;
+  align-items: center;
 }
 
 .online-status {
-    background: limegreen;
-    width: 0.5em;
-    height: 0.5em;
-    border-radius: 50%;
-    margin-right: 1em;
+  background: limegreen;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  margin-right: 1em;
 }
 
 .fa-dice-two {
-    margin-right: 8px;
-    font-size: 3em;
+  margin-right: 8px;
+  font-size: 3em;
 }
 
 .btn {
-    display: flex;
-    width: 8em;
-    align-items: center;
-    justify-content: center;
-    margin-left: auto;
-    margin-right: auto;
-    margin-bottom: 1em;
+  display: flex;
+  width: 8em;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 1em;
 }
 
 .notification-icon {
-    margin-right: 1em;
+  margin-right: 1em;
 }
 
 .notification-datetime {
-    position: absolute;
-    right: 1em;
-    bottom: 0.5em;
-    font-size: 13px;
+  position: absolute;
+  right: 1em;
+  bottom: 0.5em;
+  font-size: 13px;
 }
 
 .notification-text {
-    margin-bottom: 1em;
-    font-size: 14px;
+  margin-bottom: 1em;
+  font-size: 14px;
 }
 
 .collection-item {
-    position: relative;
+  position: relative;
 }
 
 .collection-item-flex {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 }
 .button-confirm {
-    padding: 0.5em;
-    cursor: pointer;
-    -webkit-box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
-    box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
-    outline: none;
-    border: none;
-    margin-left: 1em;
-    margin-bottom: 1em;
-    font-size: 14px;
+  padding: 0.5em;
+  cursor: pointer;
+  -webkit-box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+    0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+    0 3px 1px -2px rgba(0, 0, 0, 0.12), 0 1px 5px 0 rgba(0, 0, 0, 0.2);
+  outline: none;
+  border: none;
+  margin-left: 1em;
+  margin-bottom: 1em;
+  font-size: 14px;
 }
 .notify-link {
-    cursor: pointer;
+  cursor: pointer;
 }
 .p1 {
-    padding: 1em!important;
-} 
+  padding: 1em !important;
+}
 </style>
