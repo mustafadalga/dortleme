@@ -303,7 +303,9 @@ export default {
             moveOrder: currentEmail,
             winnerPlayer: null,
             isPlayersCompleted: false,
-            gameStatusNo: 0
+            gameStatusNo: 0,
+            redWaitingCount:0,
+            greenWaitingCount:0
           });
         } else {
           this.createGameRoom(opponent);
