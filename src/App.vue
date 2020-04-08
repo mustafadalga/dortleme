@@ -24,7 +24,7 @@ export default {
   },
   methods: {
     changeTitle() {
-      let title = "Dörtleme | ";
+      let title = "Dörtleme Zeka Oyunu | ";
       if (this.routeName === "Signup") {
         title += "Kayıt Ol";
       } else if (this.routeName === "Login") {
