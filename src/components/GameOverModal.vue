@@ -12,15 +12,19 @@
         <h4 class="center" v-if="gameStatusNo===5">
           <font-awesome-icon :icon="['fas', 'trophy']" class="font-awesome-size teal-text" />
         </h4>
-
         <div class="row" v-if="gameStatusNo!==7">
           <div class="col s12 m6 offset-m3">
             <div class="card teal darken-1">
               <div class="card-content white-text center">
-                <span class="card-title">Oyun Bitti</span>
+                <span class="card-title">Oyun Bitti {{ winnerPlayer ? "var" : "yok" }}</span>
                 <p>{{ description }}</p>
                 <p v-if="gameStatusNo===6">Oyun berabere kaldı.</p>
-                <p v-else>Kazanan Oyuncu: {{winnerPlayer == currentUser.email ? currentUser.username : opponent.username }}</p>
+               
+                <p style="margin-top:1em;"
+                  v-else-if="winnerPlayer"
+                >
+                
+                Kazanan Oyuncu: {{winnerPlayer == currentUser.email ? currentUser.username : opponent.username }}</p>
               </div>
               <hr />
               <div class="card-content white-text center modal-skor-durum">
@@ -30,15 +34,15 @@
                     <p>
                       <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
                     </p>
-                    <p>{{ winnerPlayer ? (winnerPlayer == currentUser.email ? currentUser.username : opponent.username) : currentUser.username }}</p>
-                    <p>{{winnerPlayer ? (winnerPlayer == currentUser.email ? currentUserSkor : opponentScore) :currentUserSkor }}</p>
+                    <p>{{ currentUser.username }}</p>
+                    <p>{{ currentUserSkor}}</p>
                   </div>
                   <div class="col s12 m6">
                     <p>
                       <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
                     </p>
-                    <p>{{ winnerPlayer ? (winnerPlayer == currentUser.email ? opponent.username : currentUser.username) : opponent.username }}</p>
-                    <p>{{ winnerPlayer ? (winnerPlayer == currentUser.email ? opponentScore : currentUserSkor) : opponentScore }}</p>
+                      <p>{{ opponent.username }}</p>
+                    <p>{{ opponentScore}}</p>
                   </div>
                 </div>
               </div>
@@ -58,7 +62,7 @@
       </div>
       <div class="modal-footer">
         <button
-          v-if="gameStatusNo===5 || gameStatusNo===6"
+          v-if="gameStatusNo===5 || gameStatusNo===6 || gameStatusNo===8"
           class="btn purple darken-3 waves-green"
           @click="newGame"
         >Yeni Oyun</button>
@@ -101,8 +105,29 @@ export default {
         "1 dakikalık bekleme süresi sonucunda rakip oyuncu " +
         this.opponent.username +
         " oyuna giriş yapmadığından dolayı hükmen mağlup oldu";
+    } else if (this.gameStatusNo === 8 && this.winnerPlayer !== null) {
+      this.description = this.getLoserDescription;
     }
-     
+  },
+  computed: {
+    getLoserDescription: function() {
+      if (this.winnerPlayer === this.currentUser.email) {
+        return (
+          "Rakibiniz " +
+          this.opponent.username +
+          " , 3 defa hamle sırası gelmesine rağmen hamle yapmadığı için oyunu kaybetti."
+        );
+      } else {
+        return "3 defa hamle sıranız gelmesine rağmen hamle yapmadığınız için oyunu kaybettiniz!";
+      }
+    }
+  },
+  watch: {
+    winnerPlayer: function(value) {
+      if (this.gameStatusNo === 8 && value !== null) {
+        this.description = this.getLoserDescription;
+      }
+    }
   },
   methods: {
     newGame() {

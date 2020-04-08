@@ -78,7 +78,7 @@
         @modalClose="modalClose"
       />
     </div>
-    <div v-else-if="gameStatusNo>2 && gameStatusNo<8">
+    <div v-else-if="gameStatusNo>2 && gameStatusNo<9">
       <GameOverModal
         @newGame="newGame"
         @exitGame="exitGame"
@@ -142,7 +142,9 @@ export default {
       isOpponentStopwatchExpired: false,
       isMoveStopwatchExpired: false,
       zIndexStyle: false,
-      quadPositions: []
+      quadPositions: [],
+      redWaitingCount: 0,
+      greenWaitingCount: 0
     };
   },
   created() {
@@ -158,6 +160,7 @@ export default {
     this.getOpponentWaitStopWatch();
     this.getMovementWaitStopWatch();
     this.checkGameRoom();
+    this.getWaitingCount();
   },
   methods: {
     updatePlayersPlayingStatus(status) {
@@ -192,9 +195,11 @@ export default {
             (change.type == "modified" || change.type == "added") &&
             change.doc.id == this.gameNo &&
             change.doc.data().winnerPlayer &&
-            change.doc.data().gameStatusNo === 5
+            (change.doc.data().gameStatusNo === 5 ||
+              change.doc.data().gameStatusNo === 8)
           ) {
             this.winnerPlayer = change.doc.data().winnerPlayer;
+            
 
             if (change.doc.data().isPlayersCompleted) {
               this.winnerSoundEffect();
@@ -216,6 +221,8 @@ export default {
             );
             this.resetGameData();
             this.whichPlayerStart();
+          }else{
+            this.winnerPlayer=change.doc.data().winnerPlayer
           }
         });
       });
@@ -295,11 +302,11 @@ export default {
               this.gameStatusNo = 3;
             } else if (
               (change.type === "added" || change.type === "modified") &&
-              change.doc.data().gameStatusNo === 7
+              (change.doc.data().gameStatusNo>4 && change.doc.data().gameStatusNo<9)
             ) {
               this.gameStatusNo = change.doc.data().gameStatusNo;
-            }
-
+            } 
+/*
             if (
               (change.type == "added" || change.type == "modified") &&
               change.doc.data().gameStatusNo == 5
@@ -311,6 +318,8 @@ export default {
             ) {
               this.gameStatusNo = change.doc.data().gameStatusNo;
             }
+
+            */
           });
         });
     },
@@ -349,7 +358,7 @@ export default {
     createMovementWaitStopWatch() {
       return new Promise((resolve, reject) => {
         let now = new Date();
-        let waitingTime = 20 * 1000;
+        let waitingTime = 10 * 1000;
         let due = new Date(now.getTime() + waitingTime);
         db.collection("game_waits")
           .add({
@@ -452,20 +461,90 @@ export default {
             this.moveScaleCSS = "scale-out";
             this.isMoveStopwatchExpired = true;
             this.changePlayer();
-
             setTimeout(() => {
               this.moveScaleCSS = "scale-in";
             }, 1000);
 
             if (this.moveOrder === this.currentUser.email) {
+              this.increaseWaitingCount();
               this.changeMoveOrder();
               this.deleteMovementWaitStopWatch().then(() => {
                 setTimeout(() => {
-                  this.createMovementWaitStopWatch();
+                  if(this.winnerPlayer===null){
+                    this.createMovementWaitStopWatch();
+                  }
                 }, 3000);
               });
             }
           }
+        }
+      }
+    },
+    increaseWaitingCount() {
+      if (this.startingPlayer === this.currentUser.email) {
+        db.collection("game_rooms")
+          .doc(this.gameNo)
+          .get()
+          .then(doc => {
+            db.collection("game_rooms")
+              .doc(doc.id)
+              .update({
+                redWaitingCount: doc.data().redWaitingCount + 1
+              });
+          });
+      } else {
+        db.collection("game_rooms")
+          .doc(this.gameNo)
+          .get()
+          .then(doc => {
+            db.collection("game_rooms")
+              .doc(doc.id)
+              .update({
+                greenWaitingCount: doc.data().greenWaitingCount + 1
+              });
+          });
+      }
+    },
+    getWaitingCount() {
+      db.collection("game_rooms")
+        .where("gameNo", "==", this.gameNo)
+        .onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            this.redWaitingCount = change.doc.data().redWaitingCount;
+            this.greenWaitingCount = change.doc.data().greenWaitingCount;
+          });
+          if(this.winnerPlayer===null){
+            this.checkWaitingCount();
+          }
+        });
+    },
+    getWaitingCountStatus() {
+      let waitingCountStatus = null;
+      if (this.redWaitingCount > 0) {
+        this.gameStatusNo = 8;
+        waitingCountStatus = 1;
+      } else if (this.greenWaitingCount > 0) {
+        this.gameStatusNo = 8;
+        waitingCountStatus = 2;
+      }
+      return waitingCountStatus;
+    },
+    checkWaitingCount() {
+      if (this.getWaitingCountStatus() == 1) {
+        if (
+          this.currentUser.email !== this.startingPlayer &&
+          this.winnerPlayer === null
+        ) {
+          //this.winnerPlayer=this.currentUser.email;
+          this.gameCompleted();
+        }
+      } else if (this.getWaitingCountStatus() === 2) {
+        if (
+          this.currentUser.email === this.startingPlayer &&
+          this.winnerPlayer === null
+        ) {
+          //this.winnerPlayer=this.opponent.email;
+          this.gameCompleted();
         }
       }
     },
@@ -589,7 +668,7 @@ export default {
       } else if (this.gameStatusNo === 4) {
         this.deleteNotifications();
         this.deleteGame();
-      } else if (this.gameStatusNo === 5 || this.gameStatusNo === 6) {
+      } else if (this.gameStatusNo === 5 || this.gameStatusNo === 6 || this.gameStatusNo===8) {
         this.changePlayersCompletionStatus(false);
         this.changeGameStatusNo(7);
         this.deleteNotifications();
@@ -598,6 +677,7 @@ export default {
         this.deleteNotifications();
         this.deleteGame();
       }
+
       window.clearTimeout(this.timeoutHandleMove);
       window.clearTimeout(this.timeoutHandleGameStart);
       this.deleteGameSession();
@@ -659,8 +739,7 @@ export default {
     },
     newGame() {
       this.deleteGameMoves().then(() => {
-        this.resetWinnerPlayer();
-        this.changeGameStatusNo(0);
+        this.resetGameRoomData();
       });
       setTimeout(() => {
         this.createMovementWaitStopWatch();
@@ -682,14 +761,17 @@ export default {
           .catch(error => reject(error));
       });
     },
-    resetWinnerPlayer() {
+    resetGameRoomData() {
       return new Promise((resolve, reject) => {
         if (this.winnerPlayer) {
           db.collection("game_rooms")
             .doc(this.gameNo)
             .update({
               winnerPlayer: null,
-              moveOrder: this.currentUser.email
+              moveOrder: this.currentUser.email,
+              gameStatusNo: 0,
+              redWaitingCount: 0,
+              greenWaitingCount: 0
             })
             .then(() => resolve(true))
             .catch(() => reject(false));
@@ -817,8 +899,8 @@ export default {
             row: this.row,
             col: this.col,
             color: this.color,
-            playerNo: this.playerNo,
             activePlayer: this.activePlayer,
+            playerNo: this.playerNo,
             gameNo: this.gameNo,
             timestamp: Date.now()
           })
@@ -1111,7 +1193,11 @@ export default {
       this.moveCountDown = null;
 
       setTimeout(() => {
-        this.changeGameStatusNo(5);
+        if (this.gameStatusNo === 8) {
+          this.changeGameStatusNo(8);
+        } else {
+          this.changeGameStatusNo(5);
+        }
       }, 3000);
       this.addWinnerPlayer(this.currentUser.email);
       this.increaseScore(this.currentUser.email);
