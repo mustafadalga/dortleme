@@ -75,6 +75,10 @@ body {
     background: rgba(255, 0, 0, .8);
 }
 
+.pano {
+    margin-top: 1em
+}
+
 .card-red-team,
 .card-green-team {
     padding: 1em;
@@ -166,6 +170,10 @@ body {
 }
 
 @media (max-width: 600px) {
+    nav {
+        height: 36px;
+        line-height: 36px;
+    }
     .dortleme {
         width: calc(6*4em);
         height: calc(6*4em);
@@ -199,5 +207,15 @@ body {
         margin: .3em auto;
         width: 2em;
         height: 2em;
+    }
+}
+
+.mobile-warning {
+    display: none;
+}
+
+@media screen and (orientation: landscape) and (max-device-width: 900px) {
+    .mobile-warning {
+        display: block;
     }
 }

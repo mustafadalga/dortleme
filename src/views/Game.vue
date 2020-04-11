@@ -1,10 +1,9 @@
 <template>
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
-
-    <div class="container center" style="margin-top:1em">
+    <div class="container pano center" >
       <div class="row">
-        <div class="col s6 m3">
+        <div class="col s6 m3" >
           <div
             class="z-depth-1 white-text bg-red card-red-team"
             :class="moveOrder==startingPlayer ? 'aktif-takim-border' : ''"
@@ -20,7 +19,7 @@
           </div>
         </div>
 
-        <div class="col s6 m3 offset-m6">
+        <div class="col s6 m3 offset-m6" >
           <div
             class="z-depth-1 white-text bg-green card-green-team"
             :class="moveOrder!=startingPlayer ? 'aktif-takim-border' : ''"
@@ -36,7 +35,6 @@
         </div>
       </div>
     </div>
-
     <div class="dortleme-container">
       <div class="dortleme">
         <div v-for="row in 6" :key="row" class="row-container">
@@ -88,6 +86,7 @@
         :gameStatusNo="gameStatusNo"
       />
     </div>
+    <MobileWarningModal class="mobile-warning" />
   </div>
 </template>
 
@@ -101,6 +100,7 @@ import db from "@/firebase/init";
 import Navbar from "@/components/Navbar";
 import GameOverModal from "@/components/GameOverModal";
 import ExitGameConfirmModal from "@/components/ExitGameConfirmModal";
+import MobileWarningModal from "@/components/MobileWarningModal";
 import MovementSoundFile from "@/assets/sound/movement.mp3";
 import WinnerSoundFile from "@/assets/sound/winner.mp3";
 
@@ -109,7 +109,8 @@ export default {
   components: {
     Navbar,
     GameOverModal,
-    ExitGameConfirmModal
+    ExitGameConfirmModal,
+    MobileWarningModal
   },
   data() {
     return {
@@ -199,7 +200,6 @@ export default {
               change.doc.data().gameStatusNo === 8)
           ) {
             this.winnerPlayer = change.doc.data().winnerPlayer;
-            
 
             if (change.doc.data().isPlayersCompleted) {
               this.winnerSoundEffect();
@@ -221,8 +221,8 @@ export default {
             );
             this.resetGameData();
             this.whichPlayerStart();
-          }else{
-            this.winnerPlayer=change.doc.data().winnerPlayer
+          } else {
+            this.winnerPlayer = change.doc.data().winnerPlayer;
           }
         });
       });
@@ -302,11 +302,12 @@ export default {
               this.gameStatusNo = 3;
             } else if (
               (change.type === "added" || change.type === "modified") &&
-              (change.doc.data().gameStatusNo>4 && change.doc.data().gameStatusNo<9)
+              change.doc.data().gameStatusNo > 4 &&
+              change.doc.data().gameStatusNo < 9
             ) {
               this.gameStatusNo = change.doc.data().gameStatusNo;
-            } 
-/*
+            }
+            /*
             if (
               (change.type == "added" || change.type == "modified") &&
               change.doc.data().gameStatusNo == 5
@@ -318,7 +319,6 @@ export default {
             ) {
               this.gameStatusNo = change.doc.data().gameStatusNo;
             }
-
             */
           });
         });
@@ -331,7 +331,8 @@ export default {
         .then(docs => {
           docs.forEach(doc => {
             let dueSeconds = doc.data().due.seconds;
-            this.calcOpponentRemainingTime(dueSeconds);
+            console.log(dueSeconds);
+            //this.calcOpponentRemainingTime(dueSeconds);
           });
         });
     },
@@ -358,7 +359,7 @@ export default {
     createMovementWaitStopWatch() {
       return new Promise((resolve, reject) => {
         let now = new Date();
-        let waitingTime = 10 * 1000;
+        let waitingTime = 120 * 1000;
         let due = new Date(now.getTime() + waitingTime);
         db.collection("game_waits")
           .add({
@@ -470,7 +471,7 @@ export default {
               this.changeMoveOrder();
               this.deleteMovementWaitStopWatch().then(() => {
                 setTimeout(() => {
-                  if(this.winnerPlayer===null){
+                  if (this.winnerPlayer === null) {
                     this.createMovementWaitStopWatch();
                   }
                 }, 3000);
@@ -513,7 +514,7 @@ export default {
             this.redWaitingCount = change.doc.data().redWaitingCount;
             this.greenWaitingCount = change.doc.data().greenWaitingCount;
           });
-          if(this.winnerPlayer===null){
+          if (this.winnerPlayer === null) {
             this.checkWaitingCount();
           }
         });
@@ -668,7 +669,11 @@ export default {
       } else if (this.gameStatusNo === 4) {
         this.deleteNotifications();
         this.deleteGame();
-      } else if (this.gameStatusNo === 5 || this.gameStatusNo === 6 || this.gameStatusNo===8) {
+      } else if (
+        this.gameStatusNo === 5 ||
+        this.gameStatusNo === 6 ||
+        this.gameStatusNo === 8
+      ) {
         this.changePlayersCompletionStatus(false);
         this.changeGameStatusNo(7);
         this.deleteNotifications();
