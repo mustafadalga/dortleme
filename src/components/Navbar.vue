@@ -11,22 +11,22 @@
       <ul class="right">
         <li v-if="!currentUser">
           <router-link :to="{name:'Signup'}">
-            <font-awesome-icon :icon="['fas', 'user-plus']" class="font-awesome-size" />
+            <font-awesome-icon :icon="['fas', 'user-plus']" />
           </router-link>
         </li>
         <li v-if="!currentUser">
           <router-link :to="{name:'Login'}" style="height:100%">
-            <font-awesome-icon :icon="['fas', 'sign-in-alt']" class="font-awesome-size" />
+            <font-awesome-icon :icon="['fas', 'sign-in-alt']" />
           </router-link>
         </li>
         <li v-if="currentUser && $route.name=='Game'">
           <a @click="exitGame">
-            <font-awesome-icon :icon="['fas', 'times-circle']" class="font-awesome-size" />
+            <font-awesome-icon :icon="['fas', 'times-circle']" />
           </a>
         </li>
         <li v-if="currentUser && $route.name!=='Game'" class="rating-logo">
           <router-link :to="{name:'Ratings'}">
-            <img src="../assets/img/rating.png" />
+            <img src="../assets/img/rating.svg" />
           </router-link>
         </li>
         <li v-if="currentUser  && $route.name!=='Game'">
@@ -37,7 +37,6 @@
           >
             <font-awesome-icon
               :icon="['fas', 'bell']"
-              class="font-awesome-size"
               :class="[notificationCount > 0 ? 'bell-on' : '',isAnimateAdded ? 'animated wobble' : '']"
             />
             <span v-if="notificationCount > 0" class="bell-badge">{{ notificationCount }}</span>
@@ -46,7 +45,7 @@
 
         <li v-if="currentUser  && $route.name!=='Game'">
           <a @click="logout">
-            <font-awesome-icon :icon="['fas', 'sign-out-alt']" class="font-awesome-size" />
+            <font-awesome-icon :icon="['fas', 'sign-out-alt']" />
           </a>
         </li>
       </ul>
@@ -95,14 +94,13 @@ export default {
     };
   },
   mounted() {
-    this.connectionStatus=navigator.onLine
+    this.connectionStatus = navigator.onLine;
     this.addOnlineStatusEventListener();
   },
   beforeDestroy() {
     this.removeOnlineStatusEventListener();
   },
   created() {
-
     this.currentUser = this.$session.get("user");
     if (this.currentUser) {
       if (this.$session.exists("gameNo")) {
@@ -244,11 +242,14 @@ export default {
 .brand-logo .material-icons {
   font-size: 1em;
 }
-.font-awesome-size {
-  font-size: 1.5em;
-}
 .fa-home {
   font-size: 1em;
+}
+.fa-bell,
+.fa-plus.fa-sign-in-alt,
+.fa-sign-out-alt,
+.fa-times-circle {
+  font-size: 1.5em;
 }
 .bell-on {
   color: lime;
@@ -266,28 +267,47 @@ export default {
 .brand-text {
   margin-left: 8px;
 }
-.rating-logo,
-.rating-logo a {
-  max-height: 64px;
-}
+
 .rating-logo img {
-  margin-top: 20px;
+  margin-top: 15px;
+  width: 32px;
+  height: 32px;
 }
-@media (max-width: 600px) {
+@media (max-width: 800px) {
+  nav {
+    height: 40px;
+    line-height: 40px;
+  }
+  .rating-logo img {
+    margin-top: 4px;
+    width: 28px;
+    height: 28px;
+  }
   .brand-text {
     font-size: 0.7em;
   }
-  .rating-logo,
-  .rating-logo a {
-    max-height: 56px;
+}
+@media (max-width: 600px) {
+  nav {
+    height: 36px;
+    line-height: 36px;
   }
   .rating-logo img {
-    margin-top: 16px;
+    margin-top: 6px;
+    width: 24px;
+    height: 24px;
   }
-}
-@media (max-width: 320px) {
   .brand-text {
     font-size: 0.5em;
+  }
+  .fa-home {
+    font-size: 0.5em;
+  }
+  .fa-bell {
+    font-size: 1em;
+  }
+  .fa-sign-out-alt {
+    font-size: 1em;
   }
 }
 .vue-notification-group {
