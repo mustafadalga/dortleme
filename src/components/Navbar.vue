@@ -103,6 +103,7 @@ export default {
   created() {
     this.currentUser = this.$session.get("user");
     if (this.currentUser) {
+      this.addOnlineUser();
       if (this.$session.exists("gameNo")) {
         this.gameNo = this.$session.get("gameNo");
       }
@@ -117,9 +118,31 @@ export default {
         this.deleteRejectedRequest();
       }
     }
+    this.addBeforeUnloadEventListener()
   },
 
   methods: {
+    addOnlineUser() {
+      let ref = db.collection("game_users").doc(this.currentUser.email);
+      ref.get().then(doc => {
+        if (!doc.exists) {
+          ref.set({
+            user_id: this.currentUser.id,
+            username: this.currentUser.username,
+            is_play: false
+          });
+        }
+      });
+    },
+    addBeforeUnloadEventListener() {
+      window.addEventListener(
+        "beforeunload",
+        () => {
+          this.deleteOnlineUser();
+        },
+        true
+      );
+    },
     addOnlineStatusEventListener() {
       window.addEventListener("online", this.updateOnlineStatus);
       window.addEventListener("offline", this.updateOnlineStatus);
