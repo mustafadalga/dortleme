@@ -1,6 +1,6 @@
  # Dörtleme Zeka Oyunu
 
-**Dörtleme zeka oyunu Vue Js ile geliştirilen 2 kişilik online bir zeka oyunudur.**
+**Dörtleme, Vue Js ile geliştirilen 2 kişilik online bir zeka oyunudur.**
 
 ![dortleme](https://user-images.githubusercontent.com/25087769/78579093-19d3c780-7839-11ea-8c0f-b89b60e39aea.PNG)
 
