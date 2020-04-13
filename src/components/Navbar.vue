@@ -271,7 +271,8 @@ export default {
 .fa-bell,
 .fa-plus.fa-sign-in-alt,
 .fa-sign-out-alt,
-.fa-times-circle {
+.fa-sign-in-alt,
+.fa-times-circle,.fa-user-plus {
   font-size: 1.5em;
 }
 .bell-on {
@@ -326,11 +327,16 @@ export default {
   .fa-home {
     font-size: 0.5em;
   }
-  .fa-bell {
+ .fa-sign-out-alt,.fa-sign-in-alt,.fa-user-plus {
     font-size: 1em;
   }
-  .fa-sign-out-alt {
-    font-size: 1em;
+   .fa-bell{
+     font-size: 1.1em;
+   }
+  .bell-badge{
+    font-size: .75em;
+    line-height: 16px;
+    height: 16px;
   }
 }
 .vue-notification-group {
