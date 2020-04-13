@@ -305,7 +305,9 @@ export default {
             isPlayersCompleted: false,
             gameStatusNo: 0,
             redWaitingCount:0,
-            greenWaitingCount:0
+            greenWaitingCount:0,
+            redPlayerGameTime:0,
+            greenPlayerGameTime:0
           });
         } else {
           this.createGameRoom(opponent);

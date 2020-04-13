@@ -1,9 +1,9 @@
 <template>
   <div id="game">
     <Navbar @openExitGameConfirmModal="openExitGameConfirmModal" />
-    <div class="container pano center" >
+    <div class="container pano center">
       <div class="row">
-        <div class="col s6 m3" >
+        <div class="col s6 m3">
           <div
             class="z-depth-1 white-text bg-red card-red-team"
             :class="moveOrder==startingPlayer ? 'aktif-takim-border' : ''"
@@ -19,7 +19,7 @@
           </div>
         </div>
 
-        <div class="col s6 m3 offset-m6" >
+        <div class="col s6 m3 offset-m6">
           <div
             class="z-depth-1 white-text bg-green card-green-team"
             :class="moveOrder!=startingPlayer ? 'aktif-takim-border' : ''"
@@ -140,6 +140,7 @@ export default {
       gameStartCountDown: null,
       moveCountDown: null,
       gameStatusNo: null,
+      moveDueDate: 0,
       isOpponentStopwatchExpired: false,
       isMoveStopwatchExpired: false,
       zIndexStyle: false,
@@ -307,19 +308,7 @@ export default {
             ) {
               this.gameStatusNo = change.doc.data().gameStatusNo;
             }
-            /*
-            if (
-              (change.type == "added" || change.type == "modified") &&
-              change.doc.data().gameStatusNo == 5
-            ) {
-              this.gameStatusNo = change.doc.data().gameStatusNo;
-            } else if (
-              (change.type == "added" || change.type == "modified") &&
-              change.doc.data().gameStatusNo == 6
-            ) {
-              this.gameStatusNo = change.doc.data().gameStatusNo;
-            }
-            */
+  
           });
         });
     },
@@ -380,6 +369,7 @@ export default {
             change.doc.data().movingPlayer
           ) {
             let dueSeconds = change.doc.data().due.seconds;
+            this.moveDueDate = change.doc.data().due.seconds;
             this.calcMovementRemainingTime(dueSeconds);
           }
         });
@@ -445,13 +435,12 @@ export default {
     calcMovementRemainingTime(dueSeconds) {
       if (!this.isGameOver) {
         window.clearTimeout(this.timeoutHandleMove);
-        let due = new Date(dueSeconds * 1000).getTime();
-        let now = new Date().getTime();
-        let remainingTime = due - now;
+        let remainingTime = this.calcDateDifference(dueSeconds);
         this.moveScaleCSS = "scale-in";
         this.isMoveStopwatchExpired = false;
         if (remainingTime > 0) {
           var date = new Date(remainingTime);
+
           this.moveCountDown = this.createRemainingTimeFormat(date);
           this.timeoutHandleMove = setTimeout(() => {
             this.calcMovementRemainingTime(dueSeconds);
@@ -465,10 +454,10 @@ export default {
             setTimeout(() => {
               this.moveScaleCSS = "scale-in";
             }, 1000);
-
             if (this.moveOrder === this.currentUser.email) {
               this.increaseWaitingCount();
               this.changeMoveOrder();
+              this.updatePlayerGameTime();
               this.deleteMovementWaitStopWatch().then(() => {
                 setTimeout(() => {
                   if (this.winnerPlayer === null) {
@@ -521,10 +510,10 @@ export default {
     },
     getWaitingCountStatus() {
       let waitingCountStatus = null;
-      if (this.redWaitingCount > 0) {
+      if (this.redWaitingCount > 2) {
         this.gameStatusNo = 8;
         waitingCountStatus = 1;
-      } else if (this.greenWaitingCount > 0) {
+      } else if (this.greenWaitingCount > 2) {
         this.gameStatusNo = 8;
         waitingCountStatus = 2;
       }
@@ -551,9 +540,7 @@ export default {
     },
     calcOpponentRemainingTime(dueSeconds) {
       window.clearTimeout(this.timeoutHandleGameStart);
-      let due = new Date(dueSeconds * 1000).getTime();
-      let now = new Date().getTime();
-      let remainingTime = due - now;
+      let remainingTime = this.calcDateDifference(dueSeconds);
       if (remainingTime > 0) {
         var date = new Date(remainingTime);
         this.gameStartCountDown = this.createRemainingTimeFormat(date);
@@ -579,7 +566,11 @@ export default {
         date.getSeconds() > 9 ? date.getSeconds() : "0" + date.getSeconds();
       return "00:" + minutes + ":" + seconds;
     },
-
+    calcDateDifference(dueSeconds) {
+      let due = new Date(dueSeconds * 1000).getTime();
+      let now = new Date().getTime();
+      return due - now;
+    },
     getMovesList() {
       db.collection("movements")
         .where("gameNo", "==", this.gameNo)
@@ -776,7 +767,9 @@ export default {
               moveOrder: this.currentUser.email,
               gameStatusNo: 0,
               redWaitingCount: 0,
-              greenWaitingCount: 0
+              greenWaitingCount: 0,
+              redPlayerGameTime: 0,
+              greenPlayerGameTime: 0
             })
             .then(() => resolve(true))
             .catch(() => reject(false));
@@ -824,6 +817,7 @@ export default {
           this.changePlayer();
           this.saveMove();
           this.changeMoveOrder();
+          this.updatePlayerGameTime();
           window.clearTimeout(this.timeoutHandleMove);
           if (!this.isMoveStopwatchExpired && this.winnerPlayer === null) {
             this.isMoveStopwatchExpired = true;
@@ -913,6 +907,50 @@ export default {
             this.getLastMovement();
           });
       }
+    },
+    updatePlayerGameTime() {
+      let passingTime = this.calcDateDifference(this.moveDueDate);
+      passingTime = 120 - Math.round(passingTime / 1000);
+      if (this.startingPlayer === this.currentUser.email) {
+        db.collection("game_rooms")
+          .doc(this.gameNo)
+          .get()
+          .then(doc => {
+            db.collection("game_rooms")
+              .doc(this.gameNo)
+              .update({
+                redPlayerGameTime: doc.data().redPlayerGameTime + passingTime
+              });
+          });
+      } else {
+        db.collection("game_rooms")
+          .doc(this.gameNo)
+          .get()
+          .then(doc => {
+            db.collection("game_rooms")
+              .doc(this.gameNo)
+              .update({
+                greenPlayerGameTime:
+                  doc.data().greenPlayerGameTime + passingTime
+              });
+          });
+      }
+    },
+    getPlayerGameTime(winnerPlayer) {
+      return new Promise((resolve, reject) => {
+        db.collection("game_rooms")
+          .doc(this.gameNo)
+          .get()
+          .then(doc => {
+            if (winnerPlayer === this.startingPlayer) {
+              return doc.data().redPlayerGameTime;
+            } else {
+              return doc.data().greenPlayerGameTime;
+            }
+          })
+          .then(val => resolve(val))
+          .catch(error => reject(error));
+      });
     },
     changeMoveOrder() {
       var ref = db.collection("game_rooms").doc(this.gameNo);
@@ -1233,19 +1271,26 @@ export default {
           winnerPlayer: player
         });
     },
+    calcScore(value) {
+      value = 24 - Math.round(value / 60);
+      return value > 1 ? value : 1;
+    },
     increaseScore(playerEmail) {
-      db.collection("scores")
-        .where("email", "==", playerEmail)
-        .get()
-        .then(querySnapshot => {
-          querySnapshot.forEach(doc => {
-            db.collection("scores")
-              .doc(doc.id)
-              .update({
-                score: doc.data().score + 10
-              });
+      this.getPlayerGameTime(playerEmail).then(value => {
+        let score = this.calcScore(value);
+        db.collection("scores")
+          .where("email", "==", playerEmail)
+          .get()
+          .then(querySnapshot => {
+            querySnapshot.forEach(doc => {
+              db.collection("scores")
+                .doc(doc.id)
+                .update({
+                  score: doc.data().score + score
+                });
+            });
           });
-        });
+      });
     },
     isGameWinned(row, col) {
       var isCheck = false;
