@@ -3,19 +3,6 @@
     <Navbar />
     <div class="home container">
       <div class="card">
-        <div style="display:none" >
-          <a class="waves-effect waves-light btn-large" @click="dbreset">
-            <i class="material-icons left">all_out</i>game_users
-          </a>
-
-          <a class="waves-effect waves-light btn-large" @click="game_rooms">game_rooms</a>
-          <a class="waves-effect waves-light btn-large" @click="game_waits">game_Waits</a>
-          <a class="waves-effect waves-light btn-large" @click="resetnotification">notificationCount</a>
-          <a class="waves-effect waves-light btn-large" @click="requesetReset">
-            <i class="material-icons left">all_out</i>istek sifirla
-          </a>
-        </div>
-
         <h4 class="heading center deep-purple-text">Online Kullanıcılar</h4>
         <div class="row center">
           <div class="col s12 m8 offset-m2 xl6 offset-xl3">
@@ -80,7 +67,6 @@ export default {
   components: {
     Navbar
   },
-
   data() {
     return {
       onlineUsers: [],
@@ -108,7 +94,6 @@ export default {
             email: doc.id,
             is_play: doc.data().is_play
           };
-
           if (change.type === "added") {
             if (doc.data().user_id !== this.currentUser.id) {
               let userIndex = this.getUserIndex(user.user_id);
@@ -206,44 +191,6 @@ export default {
         return user.user_id !== userId;
       });
     },
-
-    // temporary methods
-    dbreset() {
-      var jobskill_query = db.collection("game_users");
-      jobskill_query.get().then(function(querySnapshot) {
-        querySnapshot.forEach(function(doc) {
-          doc.ref.delete();
-        });
-      });
-    },
-    resetnotification() {
-      this.$session.set("notificationCount", 0);
-      this.notificationCount = 0;
-    },
-    requesetReset() {
-      var jobskill_query = db.collection("notifications");
-      jobskill_query.get().then(function(querySnapshot) {
-        querySnapshot.forEach(function(doc) {
-          doc.ref.delete();
-        });
-      });
-    },
-    game_rooms() {
-      var jobskill_query = db.collection("game_rooms");
-      jobskill_query.get().then(function(querySnapshot) {
-        querySnapshot.forEach(function(doc) {
-          doc.ref.delete();
-        });
-      });
-    },
-    game_waits() {
-      var jobskill_query = db.collection("game_waits");
-      jobskill_query.get().then(function(querySnapshot) {
-        querySnapshot.forEach(function(doc) {
-          doc.ref.delete();
-        });
-      });
-    }
   }
 };  
 </script>

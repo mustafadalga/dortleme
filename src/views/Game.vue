@@ -308,7 +308,6 @@ export default {
             ) {
               this.gameStatusNo = change.doc.data().gameStatusNo;
             }
-  
           });
         });
     },
@@ -320,8 +319,7 @@ export default {
         .then(docs => {
           docs.forEach(doc => {
             let dueSeconds = doc.data().due.seconds;
-            console.log(dueSeconds);
-            //this.calcOpponentRemainingTime(dueSeconds);
+            this.calcOpponentRemainingTime(dueSeconds);
           });
         });
     },
@@ -525,7 +523,6 @@ export default {
           this.currentUser.email !== this.startingPlayer &&
           this.winnerPlayer === null
         ) {
-          //this.winnerPlayer=this.currentUser.email;
           this.gameCompleted();
         }
       } else if (this.getWaitingCountStatus() === 2) {
@@ -533,7 +530,6 @@ export default {
           this.currentUser.email === this.startingPlayer &&
           this.winnerPlayer === null
         ) {
-          //this.winnerPlayer=this.opponent.email;
           this.gameCompleted();
         }
       }
@@ -551,7 +547,7 @@ export default {
         this.isOpponentStopwatchExpired = true;
         window.clearTimeout(this.timeoutHandleGameStart);
         this.deleteOpponentWaitStopWatch();
-        this.increaseScore(this.opponent.email);
+        this.increaseScore(this.currentUser.email);
         this.deleteGame();
         this.deleteNotifications();
         this.updatePlayersPlayingStatus(false);
@@ -1276,21 +1272,36 @@ export default {
       return value > 1 ? value : 1;
     },
     increaseScore(playerEmail) {
-      this.getPlayerGameTime(playerEmail).then(value => {
-        let score = this.calcScore(value);
-        db.collection("scores")
-          .where("email", "==", playerEmail)
-          .get()
-          .then(querySnapshot => {
-            querySnapshot.forEach(doc => {
-              db.collection("scores")
-                .doc(doc.id)
-                .update({
-                  score: doc.data().score + score
-                });
+      if (this.isPlayersCompleted) {
+        this.getPlayerGameTime(playerEmail).then(value => {
+          let score = this.calcScore(value);
+          db.collection("scores")
+            .where("email", "==", playerEmail)
+            .get()
+            .then(querySnapshot => {
+              querySnapshot.forEach(doc => {
+                db.collection("scores")
+                  .doc(doc.id)
+                  .update({
+                    score: doc.data().score + score
+                  });
+              });
             });
-          });
-      });
+        });
+      } else {
+          db.collection("scores")
+            .where("email", "==", playerEmail)
+            .get()
+            .then(querySnapshot => {
+              querySnapshot.forEach(doc => {
+                db.collection("scores")
+                  .doc(doc.id)
+                  .update({
+                    score: doc.data().score + 24
+                  });
+              });
+            });
+      }
     },
     isGameWinned(row, col) {
       var isCheck = false;
@@ -1328,7 +1339,6 @@ export default {
   }
 };
 </script>
-
 <style lang="css" scoped >
 @import "../assets/css/dortleme.css";
 @import "../assets/css/all.css";

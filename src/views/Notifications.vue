@@ -101,10 +101,8 @@ import {
   faUserMinus
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
-
 library.add(faUserPlus, faUserCheck, faUserMinus);
 import db from "@/firebase/init";
-//import firebase from "firebase";
 import Navbar from "@/components/Navbar";
 import { format } from "timeago.js";
 

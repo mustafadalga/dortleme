@@ -10,17 +10,17 @@
     >
       <div class="modal-content">
         <h4 class="center" v-if="gameStatusNo===5">
-          <font-awesome-icon :icon="['fas', 'trophy']" class="font-awesome-size teal-text" />
+          <font-awesome-icon :icon="['fas', 'trophy']" class="font-awesome-icon-size teal-text" />
         </h4>
         <div class="row" v-if="gameStatusNo!==7">
           <div class="col s12 m6 offset-m3">
             <div class="card teal darken-1">
               <div class="card-content white-text center">
-                <span class="card-title">Oyun Bitti {{ winnerPlayer ? "var" : "yok" }}</span>
+                <span class="card-title">Oyun Bitti </span>
                 <p>{{ description }}</p>
                 <p v-if="gameStatusNo===6">Oyun berabere kaldı.</p>
                
-                <p style="margin-top:1em;"
+                <p  class="winner-player" 
                   v-else-if="winnerPlayer"
                 >
                 
@@ -32,14 +32,14 @@
                 <div class="row">
                   <div class="col s12 m6">
                     <p>
-                      <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
+                      <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-icon-size" />
                     </p>
                     <p>{{ currentUser.username }}</p>
                     <p>{{ currentUserSkor}}</p>
                   </div>
                   <div class="col s12 m6">
                     <p>
-                      <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-size" />
+                      <font-awesome-icon :icon="['fas', 'user']" class="font-awesome-icon-size" />
                     </p>
                       <p>{{ opponent.username }}</p>
                     <p>{{ opponentScore}}</p>
@@ -172,5 +172,11 @@ export default {
 }
 .modal-footer {
   text-align: center !important;
+}
+.font-awesome-icon-size {
+  font-size: 1.5em;
+}
+.winner-player{
+  margin-top:1em;
 }
 </style>
