@@ -141,12 +141,10 @@ body {
 
 @keyframes dortluAnimasyon {
     0% {
-        background: #56ab2f;
-        background: -webkit-linear-gradient(to right, #a8e063, #56ab2f);
-        background: linear-gradient(to right, #a8e063, #56ab2f);
+        background: #2196f3;
     }
     100% {
-        background: rgba(255, 0, 0, .8);
+        background: #9c27b0;
     }
 }
 
