@@ -120,7 +120,7 @@ export default {
       }
     },
     checkPasswordLength() {
-      if (this.password > 5) {
+      if (this.password.length > 5) {
         return true;
       } else {
         return false;
