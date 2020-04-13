@@ -9,7 +9,7 @@
       </div>
     </div>
     <div
-      class="mobile-modal-overlay animated bounceInDown"
+      class="modal-overlay mobile-modal-overlay animated bounceInDown"
     ></div>
   </div>
 </template>
