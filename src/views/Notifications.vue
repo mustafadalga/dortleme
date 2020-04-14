@@ -168,7 +168,6 @@ export default {
     getNotifications() {
       db.collection("notifications").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
-          console.log(change.type)
           if (change.type === "added") {
             let doc = change.doc.data();
             if (this.currentUser.email === doc.receiverEmail) {
