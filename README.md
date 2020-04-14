@@ -66,7 +66,10 @@
 
 ## Notlar 
 * Oyun (Responsive) Mobil uyumludur.
+* Firebase config bilgileri güvenlik nedeniyle kaldırılmıştır.Firebase'yi projeye eklemek için firebase [dökümantasyonunu](https://firebase.google.com/docs/web/setup) inceyebilirsiniz.
 * Oyun eksikleri geliştirilip ,hataların giderilmesi için çalışmalar devam ediliyor.
+
+
 
 ## Oyun Bağlantı Adresi
 * [Dörtleme](https://dortleme.firebaseapp.com)
