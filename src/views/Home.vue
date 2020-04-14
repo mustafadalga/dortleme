@@ -134,9 +134,9 @@ export default {
       this.buttonRequestAddCSS(user);
 
       db.collection("notifications")
-        .where("statusCode", "==", 0)
-        .where("sender", "==", this.currentUser.username)
-        .where("receiver", "==", user.username)
+        .where("statusCode", "in" ,[0,3])
+        .where("senderEmail", "==", this.currentUser.email)
+        .where("receiverEmail", "==", user.email)
         .get()
         .then(doc => {
           if (doc.docs.length > 0) {

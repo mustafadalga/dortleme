@@ -9,7 +9,7 @@
           </div>
         </div>
 
-        <ul class="collection" style="width:80%;margin:auto">
+        <ul class="notification-collection collection">
           <li
             class="collection-item"
             v-for="(notification,index) in sortedNotifications"
@@ -63,7 +63,7 @@
               </div>
               <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
-            <div v-if="notification.statusCode==1" class="collection-item-flex">
+            <div v-else-if="notification.statusCode==1" class="collection-item-flex">
               <font-awesome-icon
                 :icon="['fas', 'user-check']"
                 class="light-green-text text-accent-4 notification-icon"
@@ -77,7 +77,7 @@
               </p>
               <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
-            <div v-if="notification.statusCode==2" class="collection-item-flex">
+            <div v-else-if="notification.statusCode==2" class="collection-item-flex">
               <font-awesome-icon
                 :icon="['fas', 'user-minus']"
                 class="red-text text-accent-4 notification-icon"
@@ -85,6 +85,21 @@
               <p
                 class="notification-text"
               >{{ notification.sender }} kullanıcısı isteğinizi reddetti.</p>
+              <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
+            </div>
+            <div v-else-if="notification.statusCode==3" class="collection-item-flex">
+              <font-awesome-icon
+                :icon="['fas', 'user-check']"
+                class="deep-purple-text text-darken-1 notification-icon"
+              />
+              <p class="notification-text">
+                {{ notification.sender}} tarafından gönderilen oyun isteğini kabul ettiniz.
+                Oyuna başlamak için
+                <a
+                  class="indigo-text notify-link"
+                  @click="newGame(notification)"
+                >Tıklayınız</a>
+              </p>
               <span class="notification-datetime">{{ timestampFormat(notification.timestamp) }}</span>
             </div>
           </li>
@@ -153,6 +168,7 @@ export default {
     getNotifications() {
       db.collection("notifications").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
+          console.log(change.type)
           if (change.type === "added") {
             let doc = change.doc.data();
             if (this.currentUser.email === doc.receiverEmail) {
@@ -180,6 +196,23 @@ export default {
         timestamp: Date.now()
       });
       this.acceptedRequests.push(user);
+      this.updateAcceptedRequestStatus(user);
+    },
+    updateAcceptedRequestStatus(user) {
+      db.collection("notifications")
+        .where("receiverEmail", "==", this.currentUser.email)
+        .where("senderEmail", "==", user.senderEmail)
+        .where("timestamp", "==", user.timestamp)
+        .get()
+        .then(notifications => {
+          notifications.forEach(notification => {
+            db.collection("notifications")
+              .doc(notification.id)
+              .update({
+                statusCode: 3
+              });
+          });
+        });
     },
     rejectRequest(user) {
       db.collection("notifications").add({
@@ -302,10 +335,10 @@ export default {
             winnerPlayer: null,
             isPlayersCompleted: false,
             gameStatusNo: 0,
-            redWaitingCount:0,
-            greenWaitingCount:0,
-            redPlayerGameTime:0,
-            greenPlayerGameTime:0
+            redWaitingCount: 0,
+            greenWaitingCount: 0,
+            redPlayerGameTime: 0,
+            greenPlayerGameTime: 0
           });
         } else {
           this.createGameRoom(opponent);
@@ -424,5 +457,9 @@ export default {
 }
 .p1 {
   padding: 1em !important;
+}
+.notification-collection {
+  width: 80%;
+  margin: auto;
 }
 </style>
