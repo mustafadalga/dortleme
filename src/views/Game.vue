@@ -153,7 +153,6 @@ export default {
     this.currentUser = this.$session.get("user");
     this.opponent = this.$session.get("opponentUser");
     this.gameNo = this.$session.get("gameNo");
-    this.updatePlayersPlayingStatus(true);
     this.whichPlayerStart();
     this.getMovesList();
     this.getWinnerPlayer();
@@ -163,6 +162,11 @@ export default {
     this.getMovementWaitStopWatch();
     this.checkGameRoom();
     this.getWaitingCount();
+  },
+  mounted() {
+    setTimeout(() => {
+      this.updatePlayersPlayingStatus(true);
+    }, 1500);
   },
   methods: {
     updatePlayersPlayingStatus(status) {
@@ -375,20 +379,25 @@ export default {
             change.doc.data().movingPlayer
           ) {
             this.moveDueDate = change.doc.data().due.seconds;
-            this.isMoveStopwatchExpired=false
-            this.moveOrderChangeStatus=true
+            this.isMoveStopwatchExpired = false;
+            this.moveOrderChangeStatus = true;
             this.calcMovementRemainingTime(this.moveDueDate);
-          }else if(change.type === "removed" &&
+          } else if (
+            change.type === "removed" &&
             change.doc.data().gameNo == this.gameNo &&
-            change.doc.data().movingPlayer){
-              this.isMoveStopwatchExpired=true
-              this.moveOrderChangeStatus=false
-              this.moveOrder=this.moveOrder===this.currentUser.email ? this.opponent.email : this.currentUser.email
-            }
+            change.doc.data().movingPlayer
+          ) {
+            this.isMoveStopwatchExpired = true;
+            this.moveOrderChangeStatus = false;
+            this.moveOrder =
+              this.moveOrder === this.currentUser.email
+                ? this.opponent.email
+                : this.currentUser.email;
+          }
         });
       });
     },
-    
+
     deleteMovementWaitStopWatch() {
       return new Promise((resolve, reject) => {
         db.collection("game_waits")
@@ -832,14 +841,14 @@ export default {
           this.playerNo = this.activePlayer;
           this.changePlayer();
           this.saveMove();
-        
+
           this.updatePlayerGameTime();
           window.clearTimeout(this.timeoutHandleMove);
           if (!this.isMoveStopwatchExpired && this.winnerPlayer === null) {
             this.isMoveStopwatchExpired = true;
             this.deleteMovementWaitStopWatch().then(() => {
               setTimeout(() => {
-                this.changeMoveOrder(); 
+                this.changeMoveOrder();
                 this.createMovementWaitStopWatch();
               }, 2000);
             });
@@ -1291,7 +1300,6 @@ export default {
           .doc(this.gameNo)
           .get()
           .then(doc => {
-            
             if (doc.data().winnerPlayer === null) {
               return true;
             } else {
@@ -1359,7 +1367,7 @@ export default {
         this.isGameOver = true;
         this.changeGameStatusNo(6);
       }
-    },
+    }
   }
 };
 </script>

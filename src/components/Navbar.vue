@@ -118,7 +118,7 @@ export default {
         this.deleteRejectedRequest();
       }
     }
-    this.addBeforeUnloadEventListener()
+    this.addBeforeUnloadEventListener();
   },
 
   methods: {
@@ -129,10 +129,17 @@ export default {
           ref.set({
             user_id: this.currentUser.id,
             username: this.currentUser.username,
-            is_play: false
+            is_play: this.checkIsPlayStatus()
           });
         }
       });
+    },
+    checkIsPlayStatus() {
+      if (this.$route.name === "Game") {
+        return true;
+      } else {
+        return false;
+      }
     },
     addBeforeUnloadEventListener() {
       window.addEventListener(
@@ -225,7 +232,6 @@ export default {
             if (this.currentUser.email === receiverEmail && !seenStatus) {
               this.addNotification(doc.id);
               this.createNotificationAnimation();
-              console.log("bildirim geldi");
             }
           }
         });
@@ -272,7 +278,8 @@ export default {
 .fa-plus.fa-sign-in-alt,
 .fa-sign-out-alt,
 .fa-sign-in-alt,
-.fa-times-circle,.fa-user-plus {
+.fa-times-circle,
+.fa-user-plus {
   font-size: 1.5em;
 }
 .bell-on {
@@ -327,14 +334,16 @@ export default {
   .fa-home {
     font-size: 0.5em;
   }
- .fa-sign-out-alt,.fa-sign-in-alt,.fa-user-plus {
+  .fa-sign-out-alt,
+  .fa-sign-in-alt,
+  .fa-user-plus {
     font-size: 1em;
   }
-   .fa-bell{
-     font-size: 1.1em;
-   }
-  .bell-badge{
-    font-size: .75em;
+  .fa-bell {
+    font-size: 1.1em;
+  }
+  .bell-badge {
+    font-size: 0.75em;
     line-height: 16px;
     height: 16px;
   }
