@@ -382,7 +382,7 @@ export default {
             this.calcMovementRemainingTime(dueSeconds);
             this.moveOrderChangeStatus = true;
             if (this.moveOrder === this.currentUser.email) {
-              console.log("hamle sırası:" + this.currentUser.email);
+              
               this.$session.set("isMakeMove", true);
             }
           } else if (
@@ -615,7 +615,7 @@ export default {
                   this.increasePlayerMoves();
                 }
               } else {
-                console.log(doc.row,doc.col,doc.color)
+                
                 this.movements[movementIndex].color = doc.color;
               }
             }
@@ -1248,7 +1248,7 @@ export default {
     },
     gameCompleted() {
       this.startQuadAnimation();
-      console.log("uzunluk:"+this.quadPositions.length)
+      
       this.isGameOver = true;
       this.isMoveStopwatchExpired = true;
       this.isOpenMoveCountDownAlert = false;
@@ -1268,9 +1268,9 @@ export default {
       this.deleteMovementWaitStopWatch();
     },
     startQuadAnimation() {
-      console.log(this.quadPositions.length);
+      
       this.quadPositions.forEach(cell => {
-        console.log(cell.row, cell.col);
+        
         db.collection("movements")
           .where("gameNo", "==", this.gameNo)
           .where("row", "==", cell.row)
