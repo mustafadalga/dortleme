@@ -62,7 +62,7 @@
           >{{ moveCountDown ? "Hamle yapmak için kalan süre:"+moveCountDown : "Süre Doldu!"}}</span>
           <span
             v-else-if="moveOrderChangeStatus===false"
-          >Hamle sırası gelen oyuncu:{{ moveOrder===currentUser.email ? currentUser.username: opponent.username }}</span>
+          >Hamle sırası gelen oyuncu:{{ moveOrder==currentUser.email ? currentUser.username : opponent.username }}</span>
         </div>
       </div>
     </div>
@@ -139,6 +139,7 @@ export default {
       timeoutHandleMove: null,
       gameStartCountDown: null,
       moveCountDown: null,
+      moveOrderChangeStatus: null,
       gameStatusNo: null,
       moveDueDate: 0,
       isOpponentStopwatchExpired: false,
@@ -207,8 +208,6 @@ export default {
             this.winnerPlayer = change.doc.data().winnerPlayer;
 
             if (change.doc.data().isPlayersCompleted) {
-              this.startQuadAnimation();
-
               this.isGameOver = true;
               this.isOpenMoveCountDownAlert = false;
             }
@@ -374,14 +373,18 @@ export default {
       db.collection("game_waits").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (
-            (change.type === "modified" || change.type === "added") &&
-            change.doc.data().gameNo === this.gameNo &&
+            (change.type == "modified" || change.type == "added") &&
+            change.doc.data().gameNo == this.gameNo &&
             change.doc.data().movingPlayer
           ) {
+            let dueSeconds = change.doc.data().due.seconds;
             this.moveDueDate = change.doc.data().due.seconds;
-            this.isMoveStopwatchExpired = false;
+            this.calcMovementRemainingTime(dueSeconds);
             this.moveOrderChangeStatus = true;
-            this.calcMovementRemainingTime(this.moveDueDate);
+            if (this.moveOrder === this.currentUser.email) {
+              console.log("hamle sırası:" + this.currentUser.email);
+              this.$session.set("isMakeMove", true);
+            }
           } else if (
             change.type === "removed" &&
             change.doc.data().gameNo == this.gameNo &&
@@ -456,7 +459,7 @@ export default {
       });
     },
     calcMovementRemainingTime(dueSeconds) {
-      if (!this.isGameOver && !this.isMoveStopwatchExpired) {
+      if (!this.isGameOver) {
         window.clearTimeout(this.timeoutHandleMove);
         let remainingTime = this.calcDateDifference(dueSeconds);
         this.moveScaleCSS = "scale-in";
@@ -612,6 +615,7 @@ export default {
                   this.increasePlayerMoves();
                 }
               } else {
+                console.log(doc.row,doc.col,doc.color)
                 this.movements[movementIndex].color = doc.color;
               }
             }
@@ -807,7 +811,10 @@ export default {
       this.movements = [];
     },
     isItMyTurn() {
-      if (this.moveOrder === this.currentUser.email) {
+      if (
+        this.moveOrder === this.currentUser.email &&
+        this.$session.get("isMakeMove") === true
+      ) {
         return true;
       } else {
         return false;
@@ -841,8 +848,8 @@ export default {
           this.playerNo = this.activePlayer;
           this.changePlayer();
           this.saveMove();
-
           this.updatePlayerGameTime();
+          this.$session.set("isMakeMove", false);
           window.clearTimeout(this.timeoutHandleMove);
           if (!this.isMoveStopwatchExpired && this.winnerPlayer === null) {
             this.isMoveStopwatchExpired = true;
@@ -850,7 +857,7 @@ export default {
               setTimeout(() => {
                 this.changeMoveOrder();
                 this.createMovementWaitStopWatch();
-              }, 2000);
+              }, 10);
             });
           }
         } else {
@@ -1019,7 +1026,6 @@ export default {
     checkCross(rowNo, colNo) {
       this.quadPositions = [];
       let cellCount = 0;
-
       cellCount = this.checkCrossDownLeft(rowNo, colNo, cellCount);
       if (this.isConnectionFourCompleted(cellCount)) {
         this.gameCompleted();
@@ -1029,14 +1035,12 @@ export default {
       if (this.isConnectionFourCompleted(cellCount)) {
         this.gameCompleted();
       }
-
       cellCount = 0;
       this.quadPositions = [];
       cellCount = this.checkCrossDownRight(rowNo, colNo, cellCount);
       if (this.isConnectionFourCompleted(cellCount)) {
         this.gameCompleted();
       }
-
       cellCount = this.checkCrossUpLeft(rowNo, colNo, cellCount);
       if (this.isConnectionFourCompleted(cellCount)) {
         this.gameCompleted();
@@ -1243,6 +1247,8 @@ export default {
       }
     },
     gameCompleted() {
+      this.startQuadAnimation();
+      console.log("uzunluk:"+this.quadPositions.length)
       this.isGameOver = true;
       this.isMoveStopwatchExpired = true;
       this.isOpenMoveCountDownAlert = false;
@@ -1262,7 +1268,9 @@ export default {
       this.deleteMovementWaitStopWatch();
     },
     startQuadAnimation() {
+      console.log(this.quadPositions.length);
       this.quadPositions.forEach(cell => {
+        console.log(cell.row, cell.col);
         db.collection("movements")
           .where("gameNo", "==", this.gameNo)
           .where("row", "==", cell.row)
