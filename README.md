@@ -104,6 +104,8 @@ npm run serve
 
 
 
+## License
+ [![License](https://img.shields.io/github/license/mustafadalga/dortleme)](https://github.com/mustafadalga/dortleme/blob/master/LICENSE.md)
 
 
 
